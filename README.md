@@ -86,7 +86,7 @@ Friction multipliers range from 1.0 (trail) to 1.8 (evergreen forest) to 50.0 (w
 
 **Jamie Weleber**
 Coconino County Sheriff's Search & Rescue
-Graduate Research — Northern Arizona University
+Graduate Research — Northwest Missouri State University
 
 ## License
 
