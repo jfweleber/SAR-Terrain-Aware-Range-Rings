@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<!-- ============================================================
+     WiSAR Decision Support Tool — Main Application Page
+     
+     Single-page web application for Wilderness Search and Rescue
+     spatial analysis. Built with Leaflet.js for mapping and a
+     Flask backend (server.py) for the analysis pipeline.
+     
+     This page demonstrates several key web GIS concepts:
+       - Leaflet.js map with multiple basemap providers
+       - GeoJSON vector overlays for TARR contours and segments
+       - Server-rendered PNG raster overlays for probability surfaces
+       - CalTopo API integration via server-side proxy (CORS bypass)
+       - Lost Person Behavior (LPB) database for subject profiling
+       - KML export for interoperability with field GIS tools
+     
+     Author:  Jamie F. Weleber
+     Created: March 2026
+     Version: 1.4
+     ============================================================ -->
+<html lang="en">
+<!-- ============================================================
+     HEAD — External dependencies and embedded stylesheet
+     
+     External resources:
+       - Leaflet 1.9.4: open-source JS mapping library (map tiles,
+         GeoJSON rendering, markers, popups, image overlays)
+       - Source Sans 3: primary UI font (Google Fonts)
+       - JetBrains Mono: monospace font for coordinate/data display
+     
+     All CSS is embedded in a single <style> block rather than a
+     separate .css file — this keeps the entire frontend in one
+     file for simpler deployment via SCP/SFTP to the Linode server.
+     ============================================================ -->
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WiSAR Decision Support Tool</title>
+    <link rel="icon" type="image/x-icon" href="/static/weleber-fav.png">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- CSS custom properties (variables) define the dark theme palette.
+         Using variables instead of hardcoded colors means the entire theme
+         can be changed by editing these values in one place. -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@300;400;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+        :root{--bg-primary:#0f1114;--bg-panel:#1a1d23;--bg-input:#252830;--border:#2e3138;--text-primary:#e8e9ec;--text-secondary:#9498a3;--text-muted:#6b7080;--accent:#3b82f6;--accent-hover:#2563eb;--accent-glow:rgba(59,130,246,0.15);--success:#22c55e;--warning:#f59e0b;--danger:#ef4444}
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Source Sans 3',sans-serif;background:var(--bg-primary);color:var(--text-primary);height:100vh;overflow:hidden;display:flex}
+        .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.75);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:9999;display:flex;align-items:center;justify-content:center;animation:fadeIn .3s ease-out}
+        .modal-overlay.hidden{display:none}
+        .modal{background:var(--bg-panel);border:1px solid var(--border);border-radius:12px;padding:40px;max-width:520px;width:90%;text-align:center;animation:slideUp .4s ease-out}
+        .modal h1{font-size:22px;font-weight:700;letter-spacing:-0.02em;margin-bottom:6px}
+        .modal .modal-subtitle{font-size:13px;color:var(--text-muted);margin-bottom:32px}
+        .modal-options{display:flex;gap:16px}
+        .modal-option{flex:1;background:var(--bg-input);border:1px solid var(--border);border-radius:10px;padding:24px 18px;cursor:pointer;transition:border-color .2s,background .2s,transform .15s;text-align:center}
+        .modal-option:hover{border-color:var(--accent);background:rgba(59,130,246,0.06);transform:translateY(-2px)}
+        .modal-option .option-icon{font-size:32px;margin-bottom:12px;display:block}
+        .modal-option .option-title{font-size:15px;font-weight:700;margin-bottom:8px}
+        .modal-option .option-desc{font-size:12px;color:var(--text-secondary);line-height:1.5}
+        @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+        @keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+        .panel{width:380px;min-width:380px;background:var(--bg-panel);border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:1000}
+        .panel-header{padding:20px 24px;border-bottom:1px solid var(--border)}
+        .panel-header h1{font-size:18px;font-weight:700;letter-spacing:-0.02em;margin-bottom:2px}
+        .panel-header .subtitle{font-size:12px;color:var(--text-muted);font-weight:400;letter-spacing:0.05em;text-transform:uppercase}
+        .panel-body{flex:1;overflow-y:auto;padding:20px 24px}
+        .input-group{margin-bottom:20px}
+        .input-group label{display:block;font-size:12px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px}
+        .input-group input,.input-group select{width:100%;padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-family:'JetBrains Mono',monospace;font-size:14px;outline:none;transition:border-color .2s,box-shadow .2s}
+        .input-group select{font-family:'Source Sans 3',sans-serif;cursor:pointer}
+        .input-group input:focus,.input-group select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+        .input-group input::placeholder{color:var(--text-muted);font-family:'Source Sans 3',sans-serif;font-size:13px}
+        .input-hint{font-size:12px;color:var(--text-secondary);margin-top:6px;line-height:1.5}
+        .percentile-row{display:flex;gap:10px}
+        .percentile-row .input-group{flex:1;margin-bottom:12px}
+        .percentile-row input{text-align:center;font-size:13px;padding:8px 6px}
+        .btn-primary{width:100%;padding:12px 20px;background:var(--accent);color:white;border:none;border-radius:6px;font-family:'Source Sans 3',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:background .2s,transform .1s}
+        .btn-primary:hover{background:var(--accent-hover)}
+        .btn-primary:active{transform:scale(0.98)}
+        .btn-primary:disabled{background:var(--bg-input);color:var(--text-muted);cursor:not-allowed}
+        .btn-green{background:#22c55e}
+        .btn-green:hover{background:#16a34a}
+        .status-bar{padding:10px 14px;border-radius:6px;font-size:13px;margin-top:16px;display:none;align-items:center;gap:8px;line-height:1.4}
+        .status-bar.visible{display:flex}
+        .status-bar.info{background:var(--accent-glow);border:1px solid rgba(59,130,246,0.3);color:var(--accent)}
+        .status-bar.success{background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);color:var(--success)}
+        .status-bar.error{background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:var(--danger)}
+        .status-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+        .status-bar.info .status-dot{background:var(--accent)}
+        .status-bar.success .status-dot{background:var(--success)}
+        .status-bar.error .status-dot{background:var(--danger)}
+        .segment-list{margin-top:24px}
+        .segment-list-header{font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:12px;display:flex;justify-content:space-between}
+        .segment-item{padding:12px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;margin-bottom:8px;cursor:pointer;transition:border-color .2s,background .2s}
+        .segment-item:hover{border-color:var(--accent);background:rgba(59,130,246,0.05)}
+        .segment-item .seg-name{font-weight:600;font-size:14px;margin-bottom:4px}
+        .segment-item .seg-meta{font-size:12px;color:var(--text-muted);font-family:'JetBrains Mono',monospace}
+        .divider{height:1px;background:var(--border);margin:24px 0}
+        .section-title{font-size:13px;font-weight:700;color:var(--text-primary);margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+        .hidden{display:none}
+        #map{flex:1;height:100vh}
+        .leaflet-popup-content-wrapper{background:var(--bg-panel);color:var(--text-primary);border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.4);border:1px solid var(--border)}
+        .leaflet-popup-tip{background:var(--bg-panel)}
+        .leaflet-popup-content{font-family:'Source Sans 3',sans-serif;font-size:13px;line-height:1.5;margin:12px 16px}
+        .popup-title{font-weight:700;font-size:15px;margin-bottom:6px}
+        .popup-detail{color:var(--text-secondary);font-size:12px}
+        .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin .6s linear infinite}
+        @keyframes spin{to{transform:rotate(360deg)}}
+        .panel-footer{padding:16px 24px;border-top:1px solid var(--border);font-size:11px;color:var(--text-muted);text-align:center}
+        .mode-badge{display:inline-block;padding:3px 10px;border-radius:4px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em}
+        .mode-badge.ipp-only{background:rgba(245,158,11,0.15);color:var(--warning)}
+        .mode-badge.caltopo{background:rgba(59,130,246,0.15);color:var(--accent)}
+        .measure-control{background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;padding:0;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.3)}
+        .measure-btn{display:flex;align-items:center;gap:6px;padding:7px 12px;color:var(--text-secondary);font-family:'Source Sans 3',sans-serif;font-size:12px;font-weight:600;background:none;border:none;cursor:pointer;white-space:nowrap;transition:color .2s}
+        .measure-btn:hover{color:var(--text-primary)}
+        .measure-btn.active{color:#ffca00}
+        .measure-btn svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+        .measure-label{background:rgba(0,0,0,0.75);color:#ffca00;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;font-family:'Source Sans 3',sans-serif;white-space:nowrap;border:1px solid rgba(255,202,0,0.3);transform:translate(-50%,-50%);display:inline-block}
+        .measure-total{background:rgba(0,0,0,0.75);color:#fff;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;font-family:'Source Sans 3',sans-serif;white-space:nowrap;border:1px solid rgba(255,255,255,0.3);transform:translate(-50%,-150%);display:inline-block}
+        .legend-control{background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;padding:0;box-shadow:0 2px 8px rgba(0,0,0,0.3)}
+        .legend-btn{display:flex;align-items:center;gap:6px;padding:7px 12px;color:var(--text-secondary);font-family:'Source Sans 3',sans-serif;font-size:12px;font-weight:600;background:none;border:none;cursor:pointer;white-space:nowrap;transition:color .2s}
+        .legend-btn:hover{color:var(--text-primary)}
+        .legend-btn svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+        .legend-body{display:none;padding:10px 14px;border-top:1px solid var(--border);min-width:180px}
+        .legend-body.open{display:block}
+        .legend-gradient{width:16px;height:100px;border-radius:3px;border:1px solid var(--border)}
+        .legend-row{display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:11px;color:var(--text-secondary)}
+        .legend-swatch{width:14px;height:3px;border-radius:1px;flex-shrink:0}
+        .basemap-control{position:absolute;bottom:12px;left:12px;z-index:1000;display:flex;gap:0;border-radius:8px;overflow:hidden;border:1px solid var(--border);box-shadow:0 2px 8px rgba(0,0,0,0.4);font-family:'Source Sans 3',sans-serif}
+        .basemap-btn{background:var(--bg-panel);color:var(--text-secondary);border:none;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;transition:background .2s,color .2s;border-right:1px solid var(--border);white-space:nowrap}
+        .basemap-btn:last-child{border-right:none}
+        .basemap-btn:hover{background:var(--bg-input);color:var(--text-primary)}
+        .basemap-btn.active{background:var(--accent);color:#fff}
+        .basemap-btn.active:hover{background:var(--accent-hover)}
+    </style>
+</head>
+<!-- ============================================================
+     BODY — Application layout
+     
+     The page uses a two-column flexbox layout:
+       - Left: 380px fixed-width sidebar panel (controls, inputs, results)
+       - Right: Leaflet map fills remaining viewport width
+     
+     Three modal overlays sit on top of everything:
+       - Splash modal: mode selection (IPP Only vs CalTopo Import)
+       - Changelog modal: version history
+       - Metadata modal: data sources, methodology, references
+       - TARR explainer modal: educational content about TARRs
+     ============================================================ -->
+<body>
+    <!-- ============================================================
+         SPLASH MODAL — Mode selection on first load
+         
+         Presents two workflow options:
+           1. IPP Only: user provides a single point + radius
+           2. CalTopo Import: user provides a CalTopo map ID to import
+              search segments and auto-detect IPP
+         
+         The disclaimer at the bottom is intentional — SAR tools must
+         clearly state their scope to prevent over-reliance on any
+         single data source during active search operations.
+         ============================================================ -->
+    <div class="modal-overlay" id="splashModal">
+        <div class="modal">
+            <h1>WiSAR Decision Support Tool</h1>
+            <p class="modal-subtitle">Coconino County Sheriff&#39;s Search &amp; Rescue</p>
+            <div class="modal-options">
+                <div class="modal-option" onclick="selectMode('ipp')">
+                    <span class="option-icon">&#127759;</span>
+                    <div class="option-title">IPP Only</div>
+                    <div class="option-desc">Generate a probability surface from an IPP and search radius. No CalTopo segments required.</div>
+                </div>
+                <div class="modal-option" onclick="selectMode('caltopo')">
+                    <span class="option-icon">&#128506;</span>
+                    <div class="option-title">Import CalTopo</div>
+                    <div class="option-desc">Import segments and IPP from a CalTopo map for full segment analysis and POA ranking.</div>
+                </div>
+            </div>
+            <p style="font-size:12px;color:var(--text-secondary);line-height:1.6;margin-top:24px;padding-top:16px;border-top:1px solid var(--border);">This tool generates spatial probability estimates based on terrain, land cover, and modeled travel behavior from the IPP. These outputs are intended as one input among many in the search planning process and do not replace the judgment of search planners, investigators, or incident command staff.</p>
+        </div>
+    </div>
+    <!-- ============================================================
+         CHANGELOG MODAL — Version history
+         Tracks all feature additions, bug fixes, and methodology
+         changes across releases. Accessible from the footer link.
+         ============================================================ -->
+    <div class="modal-overlay hidden" id="changelogModal" onclick="if(event.target===this)this.classList.add('hidden');" style="z-index:10000;">
+        <div class="modal" style="max-width:650px;max-height:90vh;overflow-y:auto;text-align:left;padding:32px;">
+            <h2 style="text-align:center;font-size:22px;color:#ffca00;margin-bottom:4px;">Changelog</h2>
+            <p style="text-align:center;font-size:13px;color:var(--text-muted);margin-bottom:24px;">WiSAR Decision Support Tool / SAR TARR Tool</p>
+            <div style="margin-bottom:24px;">
+                <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">v1.3 &#8212; March 27, 2026</h3>
+                <div style="font-size:13px;color:var(--text-secondary);line-height:1.7;">
+                    <p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Probability density color ramp:</span> The map overlay now displays log-normal probability density from the subject profile rather than raw cost-distance. Color is anchored to the statistical distribution (blue = low density, red = peak find probability), making the visualization independent of search radius. Beyond the 75th percentile, opacity fades to visually de-emphasize the containment zone.</p>
+                    <p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Percentiles required:</span> Subject profile percentiles are now required to run an analysis, ensuring all outputs are behaviorally informed. Select a profile from the 28 LPB categories or enter values manually.</p>
+                    <p style="margin-bottom:0;"><span style="color:var(--text-primary);font-weight:600;">Map legend:</span> Collapsible legend control on the map explains the probability density color ramp and TARR contour lines.</p>
+                </div>
+            </div>
+            <div style="margin-bottom:24px;">
+                <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">v1.2 &#8212; March 26, 2026</h3>
+                <div style="font-size:13px;color:var(--text-secondary);line-height:1.7;">
+                    <p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">POA normalization:</span> Segment POA values now normalized across defined segments to sum to 100%, eliminating sensitivity to buffer/radius size. Rest of World (ROW) probability is excluded as an investigative judgment outside the scope of the travel cost model.</p>
+                    <p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Scope disclaimers:</span> Added tool scope and intended use language to splash modal, POA rankings panel, and metadata modal. The tool is positioned as one data source among many and does not replace human judgment in search planning.</p>
+                    <p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">KML export:</span> Percentile contours (TARRs) downloadable as KML with styled polygons. Compatible with CalTopo, Google Earth, QGIS, Avenza, and other GIS/field applications.</p>
+                    <p style="margin-bottom:0;"><span style="color:var(--text-primary);font-weight:600;">Metadata:</span> New "Intended use" section in metadata modal. Updated POA methodology description to reflect normalization. Added favicon.</p>
+                </div>
+            </div>
+            <div style="margin-bottom:24px;">
+                <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">v1.1 &#8212; March 25, 2026</h3>
+                <div style="font-size:13px;color:var(--text-secondary);line-height:1.7;">
+                    <p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Subject profiles:</span> Added Lost Person Behavior database with 28 subject categories, cascading eco region and terrain selectors. Percentile fields auto-populate from Koester (2008) via Ferguson (2013) IGT4SAR.</p>
+                    <p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">NHD hydrology:</span> Added National Hydrography Dataset integration. Waterbody polygons, river area features, and flowlines with Strahler stream order buffering.</p>
+                    <p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">NLCD data source fix:</span> Switched from mrlc_display to mrlc_download endpoint for true NLCD classification codes.</p>
+                    <p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Vector contours:</span> TARRs now rendered as vector GeoJSON polygons. Crisp at any zoom, ready for CalTopo/TAK export.</p>
+                    <p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Friction refinement:</span> Multipliers recalibrated to hundredths precision.</p>
+                    <p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">UI improvements:</span> Split IPP buttons, Switch Mode/Reset, improved readability, TARR explainer modal, metadata modal.</p>
+                    <p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Geometry repair:</span> Robust repair for CalTopo segment polygons.</p>
+                    <p style="margin-bottom:0;"><span style="color:var(--text-primary);font-weight:600;">Water buffering:</span> NLCD water pixels dilated by 1 cell to close gaps in narrow water bodies.</p>
+                </div>
+            </div>
+            <div style="margin-bottom:24px;">
+                <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">v1.0 &#8212; March 23, 2026</h3>
+                <div style="font-size:13px;color:var(--text-secondary);line-height:1.7;">
+                    <p style="margin-bottom:0;"><span style="color:var(--text-primary);font-weight:600;">Initial release.</span> Anisotropic cost-distance with per-edge Tobler, 3D surface distance, cross-slope penalty. NLCD/IGT4SAR friction. OSM trail/road/waterway integration. CalTopo segment import with log-normal POA ranking. IPP-only and CalTopo workflows. Leaflet frontend with travel cost, percentile contour, and terrain difficulty layers. PNG and GeoTIFF downloads.</p>
+                </div>
+            </div>
+            <div style="text-align:center;">
+                <button onclick="document.getElementById('changelogModal').classList.add('hidden');" style="padding:10px 32px;background:var(--accent);color:white;border:none;border-radius:6px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+         METADATA MODAL — Data sources, methodology, and references
+         
+         Documents the technical specifications of the analysis:
+         data sources (USGS 3DEP, NLCD, OSM, NHD), algorithms
+         (Dijkstra, Tobler, log-normal POA), friction table,
+         known limitations, and intended use disclaimers.
+         
+         This metadata follows GIS best practices for documenting
+         spatial analysis tools — essential for academic credibility
+         and operational transparency in SAR contexts.
+         ============================================================ -->
+    <div class="modal-overlay hidden" id="metadataModal" onclick="if(event.target===this)this.classList.add('hidden');" style="z-index:10000;">
+        <div class="modal" style="max-width:750px;max-height:90vh;overflow-y:auto;text-align:left;padding:32px;">
+            <h2 style="text-align:center;font-size:22px;color:#ffca00;margin-bottom:4px;">WiSAR Decision Support Tool</h2>
+            <p style="text-align:center;font-size:13px;color:var(--text-muted);margin-bottom:24px;">Coconino County Sheriff's Search &amp; Rescue</p>
+
+            <div style="margin-bottom:20px;">
+                <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">Description</h3>
+                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;">The WiSAR Decision Support Tool is a web-based geospatial application that generates terrain-aware travel cost surfaces and Terrain-Aware Range Rings (TARRs) from an Initial Planning Point (IPP) using anisotropic cost-distance analysis. It supports IPP-only analysis and CalTopo segment import with Probability of Area (POA) ranking.</p>
+            </div>
+
+            <div style="margin-bottom:20px;">
+                <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">Purpose</h3>
+                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;">Developed as a proof-of-concept to bridge the gap between spatial probability modeling and operational SAR workflows. TARRs replace traditional Euclidean range rings with contours shaped by actual terrain conditions, improving search area prioritization during active incidents.</p>
+            </div>
+
+            <div style="margin-bottom:20px;">
+                <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">Methodology</h3>
+                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:8px;"><strong style="color:var(--text-primary);">Cost surface:</strong> Combines NLCD landcover friction (IGT4SAR framework, Doherty et al. 2013, Danser 2018) with OSM trail/road burn-in and waterway impedance.</p>
+                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:8px;"><strong style="color:var(--text-primary);">Cost-distance:</strong> Anisotropic Dijkstra with per-edge Tobler's Hiking Function (1993). Computes directional slope, 3D surface distance, and cross-slope traversal penalty (up to 30%).</p>
+                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:8px;"><strong style="color:var(--text-primary);">TARRs:</strong> Percentile find distances applied as contour thresholds on the cost-distance surface. Contours extracted as vector polygons for crisp rendering and CalTopo export.</p>
+                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;"><strong style="color:var(--text-primary);">POA ranking:</strong> Log-normal distribution fitted to user percentiles. Continuous probability density evaluated per cell, summed within each CalTopo segment. Values normalized across defined segments to sum to 100%.</p>
+            </div>
+
+            <div style="margin-bottom:20px;">
+                <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">Data sources</h3>
+                <table style="width:100%;border-collapse:collapse;font-size:12px;color:var(--text-secondary);">
+                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);width:30%;">Elevation</td><td style="padding:5px 0;">USGS 3DEP 1/3 arc-second, resampled to 30m</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);">Land cover</td><td style="padding:5px 0;">NLCD 2021 (MRLC/USGS), 30m native</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);">Trails &amp; roads</td><td style="padding:5px 0;">OpenStreetMap via Overpass API</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);">Waterways</td><td style="padding:5px 0;">OpenStreetMap via Overpass API</td></tr>
+                    <tr><td style="padding:5px 0;font-weight:600;color:var(--text-primary);">Search segments</td><td style="padding:5px 0;">CalTopo API (user-provided Map ID)</td></tr>
+                </table>
+            </div>
+
+            <div style="margin-bottom:20px;">
+                <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">Friction multipliers (NLCD)</h3>
+                <table style="width:100%;border-collapse:collapse;font-size:12px;color:var(--text-secondary);">
+                    <tr style="border-bottom:1px solid var(--border);background:var(--bg-input);"><th style="padding:5px 8px;text-align:left;color:var(--text-primary);">NLCD class</th><th style="padding:5px 8px;text-align:left;color:var(--text-primary);">Description</th><th style="padding:5px 8px;text-align:center;color:var(--text-primary);">IGT4SAR</th><th style="padding:5px 8px;text-align:center;color:var(--text-primary);">Friction</th></tr>
+                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 8px;">11</td><td style="padding:4px 8px;">Open Water</td><td style="padding:4px 8px;text-align:center;">99</td><td style="padding:4px 8px;text-align:center;">50.00</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);background:var(--bg-input);"><td style="padding:4px 8px;">12</td><td style="padding:4px 8px;">Perennial Ice/Snow</td><td style="padding:4px 8px;text-align:center;">85</td><td style="padding:4px 8px;text-align:center;">3.00</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 8px;">21</td><td style="padding:4px 8px;">Developed, Open Space</td><td style="padding:4px 8px;text-align:center;">5</td><td style="padding:4px 8px;text-align:center;">1.00</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);background:var(--bg-input);"><td style="padding:4px 8px;">22</td><td style="padding:4px 8px;">Developed, Low Intensity</td><td style="padding:4px 8px;text-align:center;">10</td><td style="padding:4px 8px;text-align:center;">1.02</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 8px;">23</td><td style="padding:4px 8px;">Developed, Medium Intensity</td><td style="padding:4px 8px;text-align:center;">15</td><td style="padding:4px 8px;text-align:center;">1.05</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);background:var(--bg-input);"><td style="padding:4px 8px;">24</td><td style="padding:4px 8px;">Developed, High Intensity</td><td style="padding:4px 8px;text-align:center;">20</td><td style="padding:4px 8px;text-align:center;">1.08</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 8px;">31</td><td style="padding:4px 8px;">Barren Land</td><td style="padding:4px 8px;text-align:center;">30</td><td style="padding:4px 8px;text-align:center;">1.10</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);background:var(--bg-input);"><td style="padding:4px 8px;">41</td><td style="padding:4px 8px;">Deciduous Forest</td><td style="padding:4px 8px;text-align:center;">45</td><td style="padding:4px 8px;text-align:center;">1.20</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 8px;">42</td><td style="padding:4px 8px;">Evergreen Forest</td><td style="padding:4px 8px;text-align:center;">50</td><td style="padding:4px 8px;text-align:center;">1.25</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);background:var(--bg-input);"><td style="padding:4px 8px;">43</td><td style="padding:4px 8px;">Mixed Forest</td><td style="padding:4px 8px;text-align:center;">35</td><td style="padding:4px 8px;text-align:center;">1.15</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 8px;">52</td><td style="padding:4px 8px;">Shrub/Scrub</td><td style="padding:4px 8px;text-align:center;">45</td><td style="padding:4px 8px;text-align:center;">1.15</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);background:var(--bg-input);"><td style="padding:4px 8px;">71</td><td style="padding:4px 8px;">Grassland/Herbaceous</td><td style="padding:4px 8px;text-align:center;">20</td><td style="padding:4px 8px;text-align:center;">1.05</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 8px;">81</td><td style="padding:4px 8px;">Pasture/Hay</td><td style="padding:4px 8px;text-align:center;">25</td><td style="padding:4px 8px;text-align:center;">1.08</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);background:var(--bg-input);"><td style="padding:4px 8px;">82</td><td style="padding:4px 8px;">Cultivated Crops</td><td style="padding:4px 8px;text-align:center;">30</td><td style="padding:4px 8px;text-align:center;">1.10</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 8px;">90</td><td style="padding:4px 8px;">Woody Wetlands</td><td style="padding:4px 8px;text-align:center;">80</td><td style="padding:4px 8px;text-align:center;">2.00</td></tr>
+                    <tr><td style="padding:4px 8px;">95</td><td style="padding:4px 8px;">Emergent Herbaceous Wetlands</td><td style="padding:4px 8px;text-align:center;">80</td><td style="padding:4px 8px;text-align:center;">2.00</td></tr>
+                </table>
+                <p style="font-size:11px;color:var(--text-muted);margin-top:6px;">Trails/roads from OSM assigned friction 1.00 regardless of underlying NLCD class.</p>
+            </div>
+
+            <div style="margin-bottom:20px;">
+                <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">Map layers</h3>
+                <table style="width:100%;border-collapse:collapse;font-size:12px;color:var(--text-secondary);">
+                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);width:35%;">Probability Density Surface</td><td style="padding:5px 0;">Log-normal probability density from subject profile, evaluated at each cell's cost-distance. Blue = low density, red = peak density. Anchored to percentile thresholds, independent of radius. Alpha fades beyond 75th percentile. Default: on.</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);">Percentile Contours (TARRs)</td><td style="padding:5px 0;">Vector contour polygons at 25th, 50th, 75th percentile thresholds. Default: on (when percentiles provided).</td></tr>
+                    <tr><td style="padding:5px 0;font-weight:600;color:var(--text-primary);">Terrain Difficulty</td><td style="padding:5px 0;">Local slope + landcover difficulty per cell, independent of distance from IPP. Default: off.</td></tr>
+                </table>
+            </div>
+
+            <div style="margin-bottom:20px;">
+                <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">Technical specifications</h3>
+                <table style="width:100%;border-collapse:collapse;font-size:12px;color:var(--text-secondary);">
+                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);width:40%;">Resolution</td><td style="padding:5px 0;">30m (matched to NLCD)</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);">CRS</td><td style="padding:5px 0;">EPSG:4326 (WGS 84)</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);">Algorithm</td><td style="padding:5px 0;">Dijkstra's shortest path, 8-connected, anisotropic</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);">Slope function</td><td style="padding:5px 0;">Tobler's Hiking Function (1993), directional per-edge</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);">Distance</td><td style="padding:5px 0;">3D surface distance with cross-slope penalty</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);">POA distribution</td><td style="padding:5px 0;">Log-normal fit from user percentiles</td></tr>
+                    <tr><td style="padding:5px 0;font-weight:600;color:var(--text-primary);">Server</td><td style="padding:5px 0;">Ubuntu 24.04, Python 3.12, Flask, Gunicorn, Nginx</td></tr>
+                </table>
+            </div>
+
+            <div style="margin-bottom:20px;">
+                <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">Known limitations</h3>
+                <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;">
+                    <p style="margin-bottom:6px;">Friction normalization differs from raw IGT4SAR implementation. Cross-slope traversal is approximated rather than using aspect-relative horizontal factors. Stream impedance uses a simplified binary approach rather than Strahler stream order. Trail data from OpenStreetMap may have incomplete coverage compared to authoritative datasets. NLCD acquired via WMS may have resampling artifacts. Resolution capped at 30m.</p>
+                </div>
+            </div>
+
+            <div style="margin-bottom:20px;">
+                <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">Intended use</h3>
+                <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;">
+                    <p style="margin-bottom:8px;">This tool models the spatial probability of a lost subject's location based on the physics of human movement over a landscape. It integrates elevation, slope, land cover friction, trail networks, and hydrological features to generate an anisotropic cost-distance surface from the Initial Planning Point (IPP), then fits a statistical distribution to known travel behavior data to estimate relative probability across the search area.</p>
+                    <p style="margin-bottom:8px;">These outputs are intended to supplement, not replace, the expertise of search planners and incident commanders. The model does not account for investigative factors such as subject intent, clue interpretation, witness information, or scenarios where the subject may have left the search area by non-pedestrian means. Probability of Area (POA) values are normalized across the defined search segments and do not include a Rest of World (ROW) estimate, which remains a planning judgment outside the scope of this tool.</p>
+                    <p>Search planning decisions should integrate these spatial estimates as one component of a comprehensive planning process.</p>
+                </div>
+            </div>
+
+            <div style="margin-bottom:20px;">
+                <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">References</h3>
+                <p style="font-size:11px;color:var(--text-secondary);margin-bottom:4px;">Danser, R.A. (2018). <em>Applying Least Cost Path Analysis to SAR Data.</em> USC Thesis.</p>
+                <p style="font-size:11px;color:var(--text-secondary);margin-bottom:4px;">Doherty, P.J., Guo, Q., Doke, J., &amp; Ferguson, D. (2014). Applied Geography, 47, 99-110.</p>
+                <p style="font-size:11px;color:var(--text-secondary);margin-bottom:4px;">Ferguson, D. (2013). IGT4SAR. GitHub.</p>
+                <p style="font-size:11px;color:var(--text-secondary);margin-bottom:4px;">Koester, R.J. (2008). <em>Lost Person Behavior.</em> dbS Productions.</p>
+                <p style="font-size:11px;color:var(--text-secondary);margin-bottom:4px;">Sava, E. et al. (2016). Transactions in GIS, 20(1), 38-53.</p>
+                <p style="font-size:11px;color:var(--text-secondary);margin-bottom:4px;">Tobler, W. (1993). Technical Report 93-1, NCGIA.</p>
+            </div>
+
+            <div style="margin-bottom:16px;">
+                <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">Contact</h3>
+                <p style="font-size:12px;color:var(--text-secondary);">Jamie Weleber, Coconino County Sheriff's Search &amp; Rescue<br><a href="https://sar.weleber.net" style="color:var(--accent);">https://sar.weleber.net</a></p>
+            </div>
+
+            <p style="font-size:11px;color:var(--text-muted);text-align:center;margin-bottom:16px;">Metadata Date: March 27, 2026 | Version 1.3</p>
+
+            <div style="text-align:center;">
+                <button onclick="document.getElementById('metadataModal').classList.add('hidden');" style="padding:10px 32px;background:var(--accent);color:white;border:none;border-radius:6px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+         TARR EXPLAINER MODAL — Educational content
+         
+         A three-step visual explanation of how Terrain-Aware Range
+         Rings work, designed for SAR practitioners who may not have
+         GIS backgrounds. Uses the "string analogy" to make the
+         concept of cost-distance intuitive:
+           1. Traditional range ring (circle on flat ground)
+           2. The string analogy (string draped over terrain)
+           3. The result (TARRs that deform with terrain)
+         
+         Each step includes an inline SVG diagram. These are hand-drawn
+         SVG (not generated images) so they render crisply at any zoom.
+         ============================================================ -->
+    <div class="modal-overlay hidden" id="ringInfoModal" onclick="if(event.target===this)this.classList.add('hidden');">
+        <div class="modal" style="max-width:680px;max-height:90vh;overflow-y:auto;text-align:left;padding:32px;">
+            <h2 style="text-align:center;font-size:20px;margin-bottom:4px;">Understanding terrain-aware range rings</h2>
+            <p style="text-align:center;font-size:13px;color:var(--text-muted);margin-bottom:24px;">How the WiSAR tool transforms traditional range rings using terrain data</p>
+
+            <div style="background:var(--bg-input);border-radius:8px;padding:20px;margin-bottom:20px;">
+                <h3 style="font-size:15px;color:var(--accent);margin-bottom:8px;">1. Traditional range ring</h3>
+                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:12px;">In traditional SAR, a range ring draws a perfect circle around the IPP at the statistical find distance. If the 25th percentile is 2.5 km, every point on that circle is exactly 2.5 km from the IPP in a straight line.</p>
+                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:16px;">This assumes the lost person can travel equally easily in every direction, which is rarely true in the real world.</p>
+                <svg width="100%" viewBox="0 0 500 300" style="display:block;margin:0 auto;">
+                    <rect x="20" y="10" width="460" height="260" rx="4" fill="#3a5a2a" opacity="0.15"/>
+                    <text x="40" y="35" font-family="inherit" font-size="11" fill="#7a9a6a">Flat, open grassland</text>
+                    <circle cx="250" cy="150" r="100" fill="none" stroke="#ffca00" stroke-width="2" stroke-dasharray="8 4"/>
+                    <circle cx="250" cy="150" r="7" fill="#e24b4a" stroke="white" stroke-width="2"/>
+                    <text x="250" y="175" font-family="inherit" font-size="12" fill="#e24b4a" text-anchor="middle" font-weight="600">IPP</text>
+                    <line x1="250" y1="150" x2="350" y2="150" stroke="#ccc" stroke-width="1.5"/>
+                    <text x="300" y="143" font-family="inherit" font-size="11" fill="#ccc" text-anchor="middle">2.5 km</text>
+                    <line x1="250" y1="150" x2="250" y2="50" stroke="#ccc" stroke-width="1.5"/>
+                    <text x="262" y="100" font-family="inherit" font-size="11" fill="#ccc">2.5 km</text>
+                    <line x1="250" y1="150" x2="179" y2="221" stroke="#ccc" stroke-width="1.5"/>
+                    <text x="195" y="200" font-family="inherit" font-size="11" fill="#ccc" text-anchor="end">2.5 km</text>
+                    <text x="250" y="290" font-family="inherit" font-size="11" fill="#999" text-anchor="middle">Every direction = same distance from IPP</text>
+                </svg>
+            </div>
+
+            <div style="background:var(--bg-input);border-radius:8px;padding:20px;margin-bottom:20px;">
+                <h3 style="font-size:15px;color:var(--accent);margin-bottom:8px;">2. The string analogy</h3>
+                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:12px;">Imagine a string connecting the IPP to a point on the 25th percentile ring. On flat, open ground, the string runs perfectly straight and the ring sits 2.5 km away.</p>
+                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:12px;">Now imagine the string has to go over a hill. The string bends to follow the terrain. It's still 2.5 km of string, but the point where it ends is now closer to the IPP because the hill "used up" some of the string.</p>
+                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:16px;">Dense forest, steep slopes, and rough terrain all create "bends" in the string, pulling the ring closer. Trails and flat valleys let the string run straighter, so the ring contracts less in those directions.</p>
+                <svg width="100%" viewBox="0 0 500 280" style="display:block;margin:0 auto;">
+                    <rect x="20" y="10" width="460" height="220" rx="4" fill="#3a5a2a" opacity="0.15"/>
+                    <path d="M20 180 Q130 180 190 120 Q230 80 270 80 Q310 80 350 120 Q410 180 480 180" fill="#8a7252" opacity="0.2"/>
+                    <path d="M20 180 Q130 180 190 120 Q230 80 270 80 Q310 80 350 120 Q410 180 480 180" fill="none" stroke="#8a7252" stroke-width="1.5"/>
+                    <text x="270" y="72" font-family="inherit" font-size="11" fill="#a08a62" text-anchor="middle">Steep hill</text>
+                    <circle cx="100" cy="180" r="7" fill="#e24b4a" stroke="white" stroke-width="2"/>
+                    <text x="100" y="205" font-family="inherit" font-size="12" fill="#e24b4a" text-anchor="middle" font-weight="600">IPP</text>
+                    <path d="M100 180 L190 180 L210 150 L230 120 L250 95 L270 85 L290 95 L310 120 L330 150 L350 180 L410 180" fill="none" stroke="#ffca00" stroke-width="2" stroke-dasharray="6 3"/>
+                    <circle cx="410" cy="180" r="5" fill="#ffca00" stroke="white" stroke-width="1.5"/>
+                    <text x="255" y="200" font-family="inherit" font-size="11" fill="#ffca00" text-anchor="middle">2.5 km of string going over the hill</text>
+                    <line x1="100" y1="168" x2="410" y2="168" stroke="#999" stroke-width="0.5" stroke-dasharray="4 4"/>
+                    <text x="255" y="163" font-family="inherit" font-size="11" fill="#999" text-anchor="middle">Only ~1.8 km horizontal distance</text>
+                    <text x="250" y="250" font-family="inherit" font-size="11" fill="#999" text-anchor="middle">The hill "used up" string — the ring gets pulled closer</text>
+                </svg>
+            </div>
+
+            <div style="background:var(--bg-input);border-radius:8px;padding:20px;margin-bottom:20px;">
+                <h3 style="font-size:15px;color:var(--accent);margin-bottom:8px;">3. The result: Terrain-Aware Range Rings (TARRs)</h3>
+                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:12px;">This tool does that string calculation for every direction simultaneously. Using elevation data, land cover, and trail networks, it computes the actual travel cost from the IPP to every point in the search area.</p>
+                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:12px;">The percentile rings then follow the contours of equal travel cost instead of equal straight-line distance. They stretch along trails and valleys where a person can travel easily, and compress against steep terrain, dense forest, and water barriers.</p>
+                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:16px;">The result is a more realistic picture of where a lost person could actually reach, accounting for the terrain they'd have to navigate.</p>
+                <svg width="100%" viewBox="0 0 500 340" style="display:block;margin:0 auto;">
+                    <rect x="20" y="10" width="460" height="280" rx="4" fill="#3a5a2a" opacity="0.15"/>
+                    <rect x="320" y="30" width="140" height="240" rx="4" fill="#4a7a3a" opacity="0.2"/>
+                    <text x="390" y="50" font-family="inherit" font-size="11" fill="#5a8a4a" text-anchor="middle">Dense forest</text>
+                    <path d="M60 160 Q140 160 170 120 Q200 90 230 90 Q260 90 290 120 Q320 160 380 160" fill="#8a7252" opacity="0.15" stroke="#8a7252" stroke-width="1"/>
+                    <text x="230" y="84" font-family="inherit" font-size="11" fill="#8a7252" text-anchor="middle">Ridge</text>
+                    <rect x="140" y="210" width="120" height="16" rx="3" fill="#888" opacity="0.25"/>
+                    <line x1="140" y1="218" x2="260" y2="218" stroke="#aaa" stroke-width="1.5"/>
+                    <text x="200" y="216" font-family="inherit" font-size="10" fill="#aaa" text-anchor="middle">Trail</text>
+                    <circle cx="230" cy="170" r="7" fill="#e24b4a" stroke="white" stroke-width="2"/>
+                    <text x="230" y="195" font-family="inherit" font-size="12" fill="#e24b4a" text-anchor="middle" font-weight="600">IPP</text>
+                    <circle cx="230" cy="170" r="110" fill="none" stroke="#aaa" stroke-width="1.5" stroke-dasharray="6 4" opacity="0.6"/>
+                    <text x="348" y="168" font-family="inherit" font-size="10" fill="#aaa">Euclidean</text>
+                    <path d="M230 92 Q200 90 175 102 Q148 125 138 158 Q132 182 135 210 Q142 242 160 258 Q178 268 205 273 Q230 276 255 270 Q278 260 292 245 Q302 228 300 208 Q296 185 288 172 Q272 152 258 135 Q245 115 230 92 Z" fill="none" stroke="#ffca00" stroke-width="2.5"/>
+                    <text x="100" y="215" font-family="inherit" font-size="10" fill="#ffca00" text-anchor="end">Compressed</text>
+                    <text x="100" y="228" font-family="inherit" font-size="10" fill="#ffca00" text-anchor="end">(steep slope)</text>
+                    <text x="200" y="308" font-family="inherit" font-size="10" fill="#ffca00" text-anchor="middle">Contracts less (trail)</text>
+                    <text x="365" y="215" font-family="inherit" font-size="10" fill="#ffca00">Compressed</text>
+                    <text x="365" y="228" font-family="inherit" font-size="10" fill="#ffca00">(dense forest)</text>
+                    <text x="250" y="335" font-family="inherit" font-size="11" fill="#999" text-anchor="middle">Gold = Terrain-Aware Range Ring (TARR) | Gray dashed = traditional Euclidean ring</text>
+                </svg>
+            </div>
+
+            <div style="background:var(--bg-input);border-radius:8px;padding:20px;margin-bottom:20px;">
+                <h3 style="font-size:15px;color:var(--accent);margin-bottom:8px;">4. What the tool computes</h3>
+                <table style="width:100%;font-size:13px;color:var(--text-secondary);border-collapse:collapse;">
+                    <tr style="border-bottom:1px solid var(--border);">
+                        <td style="padding:6px 0;font-weight:600;color:var(--text-primary);">Slope cost</td>
+                        <td style="padding:6px 0;">Tobler's Hiking Function — walking uphill is slower, slight downhill is fastest</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid var(--border);">
+                        <td style="padding:6px 0;font-weight:600;color:var(--text-primary);">Direction</td>
+                        <td style="padding:6px 0;">Anisotropic — cost differs going uphill vs downhill on the same slope</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid var(--border);">
+                        <td style="padding:6px 0;font-weight:600;color:var(--text-primary);">Land cover</td>
+                        <td style="padding:6px 0;">NLCD friction values — forest is harder than grassland, water is a barrier</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid var(--border);">
+                        <td style="padding:6px 0;font-weight:600;color:var(--text-primary);">Trails &amp; roads</td>
+                        <td style="padding:6px 0;">OpenStreetMap data — trails reduce travel cost significantly</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:6px 0;font-weight:600;color:var(--text-primary);">Surface distance</td>
+                        <td style="padding:6px 0;">3D ground distance, not just horizontal — steep terrain means more actual walking</td>
+                    </tr>
+                </table>
+            </div>
+
+            <div style="text-align:center;margin-top:16px;">
+                <button onclick="document.getElementById('ringInfoModal').classList.add('hidden');" style="padding:10px 32px;background:var(--accent);color:white;border:none;border-radius:6px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;">Got it</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+         SIDEBAR PANEL — Analysis controls and results
+         
+         Fixed-width panel containing all user inputs:
+           - CalTopo map ID input and segment list (CalTopo mode)
+           - IPP location controls (coordinate entry or map click)
+           - Radius/buffer distance input
+           - LPB subject profile selector with cascading eco/terrain
+           - Percentile distance inputs (auto-populated from LPB)
+           - "Generate Probability Surface" button
+           - Map layer toggles and download links
+           - POA rankings (CalTopo mode with segments)
+         
+         The panel uses overflow-y:auto on the body so it scrolls
+         independently of the map when content exceeds viewport height.
+         ============================================================ -->
+    <div class="panel">
+        <div class="panel-header">
+            <h1>WiSAR Decision Support</h1>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+                <div class="subtitle" id="modeSubtitle" style="flex:1;">Proof of Concept</div>
+                <button onclick="switchMode()" style="padding:4px 10px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text-secondary);font-family:inherit;font-size:11px;cursor:pointer;">Switch Mode</button>
+                <button onclick="resetTool()" style="padding:4px 10px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text-secondary);font-family:inherit;font-size:11px;cursor:pointer;">Reset</button>
+            </div>
+        </div>
+        <div class="panel-body">
+            <div id="caltopoSection" class="hidden">
+                <div class="input-group">
+                    <label>CalTopo Map ID</label>
+                    <input type="text" id="mapIdInput" placeholder="e.g. QV0Q1KC" />
+                    <div class="input-hint">Enter the Map ID from your CalTopo search incident map.</div>
+                </div>
+                <button class="btn-primary" id="fetchBtn" onclick="fetchSegments()">Retrieve Segments</button>
+                <div class="status-bar" id="statusBar"><div class="status-dot"></div><span id="statusText"></span></div>
+                <div class="segment-list" id="segmentList" style="display:none;">
+                    <div class="segment-list-header"><span>Retrieved Segments</span><span id="segmentCount"></span></div>
+                    <div style="display:flex;gap:12px;margin-bottom:8px;font-size:12px;"><a href="#" onclick="document.querySelectorAll('.seg-check').forEach(function(c){c.checked=true});return false;" style="color:var(--accent);text-decoration:none;">Select All</a><a href="#" onclick="document.querySelectorAll('.seg-check').forEach(function(c){c.checked=false});return false;" style="color:var(--accent);text-decoration:none;">Select None</a></div>
+                    <div id="segmentItems"></div>
+                </div>
+                <button class="btn-primary hidden" id="loadSegsBtn" onclick="loadSelectedSegments()" style="margin-top:12px;">Load Selected Segments</button>
+                <div class="divider"></div>
+            </div>
+            <div class="section-title">Initial Planning Point</div>
+            <div style="display:flex;gap:8px;margin-bottom:16px;">
+                <button id="ippCoordBtn" onclick="showCoordEntry()" style="flex:1;padding:10px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:border-color .2s;">Enter Coordinates</button>
+                <button id="ippDropBtn" onclick="activateDropPin()" style="flex:1;padding:10px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:border-color .2s;">Drop Pin on Map</button>
+            </div>
+            <div id="coordEntryDiv" class="hidden">
+                <div class="input-group">
+                    <label>IPP Coordinates</label>
+                    <input type="text" id="ippInput" placeholder="34.9200, -111.9100" />
+                    <div class="input-hint">Enter latitude, longitude then click "Place on Map" below.</div>
+                </div>
+                <button class="btn-primary btn-green" id="ippBtn" onclick="setIPP()">Place on Map</button>
+            </div>
+            <div id="dropPinDiv" class="hidden">
+                <div class="input-group" style="margin-bottom:0;">
+                    <div class="input-hint" id="dropPinHint" style="text-align:center;padding:12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;">Click anywhere on the map to place the IPP.</div>
+                </div>
+                <input type="hidden" id="ippInput2" />
+            </div>
+            <div class="status-bar" id="ippStatusBar"><div class="status-dot"></div><span id="ippStatusText"></span></div>
+            <div class="divider"></div>
+            <div id="radiusSection" class="hidden">
+                <div class="section-title">Search Radius</div>
+                <div class="input-group">
+                    <label>Radius Around IPP (meters)</label>
+                    <input type="number" id="radiusInput" placeholder="5000" value="5000" />
+                    <div class="input-hint">Defines the data download extent around the IPP. Max: 25,000m.</div>
+                </div>
+                <div class="divider"></div>
+            </div>
+            <div id="bufferSection" class="hidden">
+                <div class="section-title">Segment Buffer</div>
+                <div class="input-group">
+                    <label>Buffer Distance (meters)</label>
+                    <input type="number" id="bufferInput" placeholder="2000" value="2000" />
+                    <div class="input-hint">Buffer applied to segment bounding box for data download. Max: 10,000m.</div>
+                </div>
+                <div class="divider"></div>
+            </div>
+            <div class="section-title">Terrain-Aware Range Rings (Optional) <a href="#" onclick="document.getElementById('ringInfoModal').classList.remove('hidden');return false;" style="font-size:11px;color:var(--accent);text-decoration:none;font-weight:400;">What's this?</a></div>
+            <div class="input-group" style="margin-bottom:14px;">
+                <label>Subject Profile</label>
+                <select id="lpbCategory" onchange="onCategoryChange()" style="width:100%;padding:10px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-family:inherit;font-size:14px;cursor:pointer;">
+                    <option value="">Select a profile or enter values manually</option>
+                </select>
+                <div id="lpbEcoRow" class="hidden" style="margin-top:10px;">
+                    <label style="margin-bottom:4px;display:block;">Eco Region</label>
+                    <div id="lpbEcoBtns" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+                </div>
+                <div id="lpbTerrainRow" class="hidden" style="margin-top:10px;">
+                    <label style="margin-bottom:4px;display:block;">Terrain</label>
+                    <div id="lpbTerrainBtns" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+                </div>
+                <div id="lpbSource" class="hidden input-hint" style="margin-top:8px;">Source: Koester (2008), <em>Lost Person Behavior</em>. Via Ferguson (2013), IGT4SAR.</div>
+            </div>
+            <div class="input-hint" style="margin-bottom:14px;"><span style="font-weight:600;color:var(--text-primary);">Subject Distance Percentiles</span><br>Enter values manually or select a subject profile above. Distances in km.</div>
+            <div class="percentile-row">
+                <div class="input-group"><label>25th %</label><input type="number" id="pct25" placeholder="e.g. 0.6" /></div>
+                <div class="input-group"><label>50th %</label><input type="number" id="pct50" placeholder="e.g. 1.5" /></div>
+                <div class="input-group"><label>75th %</label><input type="number" id="pct75" placeholder="e.g. 3.2" /></div>
+            </div>
+            <div class="divider"></div>
+            <button class="btn-primary" id="runBtn" onclick="runAnalysis()" disabled>Generate Probability Surface</button>
+            <div class="input-hint" style="margin-top:8px;text-align:center;">Set an IPP to enable. Percentiles are optional.</div>
+            <div class="status-bar" id="analysisStatusBar"><div class="status-dot"></div><span id="analysisStatusText"></span></div>
+            <div id="layerToggles" class="hidden" style="margin-top:16px;padding:12px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;cursor:pointer;" onclick="var c=document.getElementById('toggleContent');c.style.display=c.style.display==='none'?'block':'none';this.querySelector('span:last-child').textContent=c.style.display==='none'?'+':'-';">
+                    <span style="font-size:12px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.06em;">Map Layers</span>
+                    <span style="color:var(--text-muted);font-size:16px;">-</span>
+                </div>
+                <div id="toggleContent">
+                    <label style="display:flex;align-items:center;gap:10px;margin-bottom:8px;cursor:pointer;font-size:13px;"><input type="checkbox" id="costToggle" checked onchange="if(this.checked){window.costOverlay.addTo(map);}else{map.removeLayer(window.costOverlay);}"> Travel Cost Surface</label>
+                    <label style="display:flex;align-items:center;gap:10px;margin-bottom:8px;cursor:pointer;font-size:13px;"><input type="checkbox" id="pctToggle" checked onchange="if(this.checked){contourLayer.addTo(map);}else{map.removeLayer(contourLayer);}"> Percentile Contours</label>
+                    <label style="display:flex;align-items:center;gap:10px;margin-bottom:8px;cursor:pointer;font-size:13px;"><input type="checkbox" id="terrainToggle" onchange="if(this.checked){window.terrainOverlay.addTo(map);}else{map.removeLayer(window.terrainOverlay);}"> Terrain Difficulty</label>
+                    <div id="downloadSection" class="hidden" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);">
+                        <div style="font-size:12px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">Download Images</div>
+                        <a id="dlCostPng" href="#" download="travel_cost.png" style="display:block;font-size:13px;color:var(--accent);text-decoration:none;margin-bottom:6px;">Travel Cost Surface (PNG)</a>
+                        <a id="dlTerrainPng" href="#" download="terrain_difficulty.png" style="display:block;font-size:13px;color:var(--accent);text-decoration:none;margin-bottom:6px;">Terrain Difficulty (PNG)</a>
+                        <a id="dlPctPng" href="#" download="percentile_contours.png" style="display:none;font-size:13px;color:var(--accent);text-decoration:none;margin-bottom:6px;">Percentile Contours (PNG)</a>
+                        <div style="font-size:12px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;margin-top:12px;">Download Raw Data</div>
+                        <a id="dlCostDist" href="#" download="cost_distance.tif" style="display:block;font-size:13px;color:var(--accent);text-decoration:none;margin-bottom:6px;">Cost-Distance GeoTIFF</a>
+                        <a id="dlCostSurf" href="#" download="cost_surface.tif" style="display:block;font-size:13px;color:var(--accent);text-decoration:none;margin-bottom:6px;">Cost Surface GeoTIFF</a>
+                        <a id="dlProb" href="#" download="probability.tif" style="display:none;font-size:13px;color:var(--accent);text-decoration:none;margin-bottom:6px;">Probability GeoTIFF</a>
+                        <a id="dlContoursKml" href="#" onclick="downloadContoursKml();return false;" style="display:none;font-size:13px;color:var(--accent);text-decoration:none;margin-bottom:6px;">Percentile Contours (KML)</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="poaSection" class="hidden" style="padding:12px 24px;border-top:1px solid var(--border);">
+                <div style="font-size:13px;font-weight:700;color:var(--text-primary);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border);">Segment POA Rankings</div>
+                <div style="font-size:12px;color:var(--text-secondary);line-height:1.5;margin-bottom:12px;padding:8px 10px;background:rgba(255,255,255,0.03);border-radius:4px;">POA values represent relative probability across defined segments based on the travel cost model. Rest of World (ROW) probability and non-movement-based scenarios are outside the scope of this analysis. These rankings are one data source for search planning and should be considered alongside investigative findings, subject behavior, clue data, and operational factors.</div>
+                <div id="poaResults"></div>
+            </div>
+        <div class="panel-footer">WiSAR Decision Support Tool — Coconino County SAR<br><a href="#" onclick="document.getElementById('metadataModal').classList.remove('hidden');return false;" style="color:var(--accent);text-decoration:none;">Metadata</a> | <a href="#" onclick="document.getElementById('changelogModal').classList.remove('hidden');return false;" style="color:var(--accent);text-decoration:none;">Changelog</a></div>
+    </div>
+    <!-- ============================================================
+         MAP CONTAINER — Leaflet map and basemap switcher
+         
+         The map fills the remaining viewport width (flex:1).
+         Three basemap options:
+           - OpenTopoMap: contour lines and terrain shading (default)
+           - USGS National Map: .gov-hosted tiles (important for
+             Sheriff's office networks that may block non-.gov domains)
+           - OpenStreetMap: reliable fallback with street-level detail
+         
+         Automatic tile-error fallback logic switches to USGS if
+         OpenTopoMap tiles fail to load (common with rate limiting).
+         ============================================================ -->
+    <div id="map">
+        <div class="basemap-control">
+            <button class="basemap-btn active" onclick="switchBasemap('topo',this)" title="OpenTopoMap — contour lines &amp; terrain">Topo</button>
+            <button class="basemap-btn" onclick="switchBasemap('usgs',this)" title="USGS National Map — government-hosted topo tiles">USGS Topo</button>
+            <button class="basemap-btn" onclick="switchBasemap('osm',this)" title="OpenStreetMap — reliable fallback">Street</button>
+        </div>
+    </div>
+    <!-- ============================================================
+         JAVASCRIPT — Application logic
+         
+         All JS is inline in a single <script> block (no separate .js file)
+         for the same deployment simplicity reason as the CSS.
+         
+         Major sections:
+           - LPB_DATA: Lost Person Behavior distance percentiles for
+             28 subject categories from Koester (2008). Each category
+             may have multiple eco-region/terrain combinations.
+           - Map initialization: Leaflet setup, basemap switching,
+             tile-error fallback, measure tool, legend control
+           - CalTopo integration: fetch map data via /api/caltopo proxy,
+             parse segments and IPP marker
+           - LPB selector: cascading dropdowns for subject profile
+           - IPP controls: coordinate entry, map click, marker dragging
+           - runAnalysis(): POST to /api/analyze, handle response,
+             render overlays, display POA rankings, build contour layers
+           - KML export: client-side KML generation from contour GeoJSON
+           - Utility functions: distance formatting, basemap switching,
+             mode switching, reset
+         ============================================================ -->
+    <script>
+        var LPB_DATA={"Abduction": [{"eco": null, "terrain": null, "distances": [0.32, 2.41, 19.31]}], "Aircraft": [{"eco": null, "terrain": null, "distances": [0.64, 1.45, 5.95]}], "Angler": [{"eco": "Temperate", "terrain": "Mountainous", "distances": [0.32, 1.45, 5.47]}, {"eco": "Temperate", "terrain": "Flat", "distances": [0.8, 1.61, 5.47]}, {"eco": "Dry", "terrain": null, "distances": [3.22, 9.66, 10.46]}, {"eco": null, "terrain": null, "distances": [0.8, 1.61, 5.47]}], "All Terrain Vehicle": [{"eco": null, "terrain": null, "distances": [1.61, 3.22, 5.63]}], "Autistic": [{"eco": "Urban", "terrain": null, "distances": [0.32, 0.97, 3.86]}, {"eco": null, "terrain": null, "distances": [0.64, 1.61, 3.7]}], "Camper": [{"eco": "Dry", "terrain": "Mountainous", "distances": [0.64, 1.61, 4.18]}, {"eco": "Temperate", "terrain": "Mountainous", "distances": [0.16, 2.25, 3.06]}, {"eco": null, "terrain": null, "distances": [0.16, 1.13, 3.22]}], "Child (1-3)": [{"eco": "Dry", "terrain": null, "distances": [0.64, 1.29, 3.86]}, {"eco": "Urban", "terrain": null, "distances": [0.16, 0.48, 0.8]}, {"eco": "Temperate", "terrain": "Mountainous", "distances": [0.16, 0.32, 0.97]}, {"eco": null, "terrain": null, "distances": [0.16, 0.32, 0.97]}], "Child (4-6)": [{"eco": "Dry", "terrain": null, "distances": [0.64, 1.93, 3.22]}, {"eco": "Urban", "terrain": null, "distances": [0.1, 0.48, 0.97]}, {"eco": "Temperate", "terrain": "Mountainous", "distances": [0.16, 0.8, 1.45]}, {"eco": null, "terrain": null, "distances": [0.16, 0.64, 1.45]}], "Child (7-9)": [{"eco": "Dry", "terrain": null, "distances": [0.48, 1.29, 3.22]}, {"eco": "Urban", "terrain": null, "distances": [0.16, 0.48, 1.45]}, {"eco": "Temperate", "terrain": "Mountainous", "distances": [0.8, 1.61, 3.22]}, {"eco": null, "terrain": null, "distances": [0.16, 0.8, 2.09]}], "Child (10-12)": [{"eco": "Dry", "terrain": null, "distances": [0.8, 2.09, 7.24]}, {"eco": "Urban", "terrain": null, "distances": [0.32, 1.45, 2.9]}, {"eco": "Temperate", "terrain": "Mountainous", "distances": [0.8, 1.61, 3.22]}, {"eco": null, "terrain": null, "distances": [0.48, 1.61, 4.83]}], "Child (13-15)": [{"eco": "Dry", "terrain": null, "distances": [2.41, 3.22, 4.83]}, {"eco": "Temperate", "terrain": "Mountainous", "distances": [0.8, 2.09, 4.83]}, {"eco": null, "terrain": null, "distances": [0.64, 1.29, 3.22]}], "Climber": [{"eco": null, "terrain": null, "distances": [0.16, 1.61, 3.22]}], "Dementia": [{"eco": "Dry", "terrain": "Mountainous", "distances": [0.97, 1.93, 3.06]}, {"eco": "Dry", "terrain": "Flat", "distances": [0.48, 1.61, 3.54]}, {"eco": "Urban", "terrain": null, "distances": [0.32, 1.13, 3.22]}, {"eco": "Temperate", "terrain": "Mountainous", "distances": [0.32, 0.8, 1.93]}, {"eco": null, "terrain": null, "distances": [0.32, 0.97, 2.41]}], "Despondent": [{"eco": "Dry", "terrain": "Mountainous", "distances": [0.8, 1.61, 3.38]}, {"eco": "Dry", "terrain": "Flat", "distances": [0.48, 1.93, 3.7]}, {"eco": "Urban", "terrain": null, "distances": [0.1, 0.48, 1.45]}, {"eco": "Temperate", "terrain": "Mountainous", "distances": [0.32, 1.13, 3.22]}, {"eco": null, "terrain": null, "distances": [0.32, 0.8, 2.25]}], "Gatherer": [{"eco": "Dry", "terrain": null, "distances": [1.61, 2.57, 5.79]}, {"eco": null, "terrain": null, "distances": [1.45, 3.22, 6.44]}], "Hiker": [{"eco": "Dry", "terrain": "Mountainous", "distances": [1.61, 3.22, 6.44]}, {"eco": "Dry", "terrain": "Flat", "distances": [1.29, 2.09, 6.6]}, {"eco": "Temperate", "terrain": "Mountainous", "distances": [1.13, 3.06, 5.79]}, {"eco": null, "terrain": null, "distances": [0.64, 1.77, 3.22]}], "Horseback Rider": [{"eco": null, "terrain": null, "distances": [0.32, 3.22, 8.05]}], "Hunter": [{"eco": "Dry", "terrain": "Mountainous", "distances": [2.09, 4.83, 8.05]}, {"eco": "Dry", "terrain": "Flat", "distances": [1.61, 3.06, 6.44]}, {"eco": "Temperate", "terrain": "Mountainous", "distances": [0.97, 2.09, 4.83]}, {"eco": null, "terrain": null, "distances": [0.64, 1.61, 3.06]}], "Intellectual Disability": [{"eco": "Dry", "terrain": null, "distances": [1.13, 4.02, 8.69]}, {"eco": "Urban", "terrain": null, "distances": [0.32, 0.8, 3.7]}, {"eco": "Temperate", "terrain": "Mountainous", "distances": [0.64, 1.61, 3.22]}, {"eco": null, "terrain": null, "distances": [0.32, 0.97, 2.09]}], "Mental Illness": [{"eco": "Urban", "terrain": null, "distances": [0.32, 0.64, 1.45]}, {"eco": "Temperate", "terrain": "Mountainous", "distances": [0.64, 2.25, 8.21]}, {"eco": null, "terrain": null, "distances": [0.8, 0.97, 2.25]}], "Mountain Biker": [{"eco": "Dry", "terrain": null, "distances": [2.74, 6.44, 13.2]}, {"eco": null, "terrain": null, "distances": [3.06, 4.02, 11.27]}], "Extreme Sport": [{"eco": null, "terrain": null, "distances": [0.48, 2.57, 5.63]}], "Runner": [{"eco": null, "terrain": null, "distances": [1.45, 2.57, 3.38]}], "Skier (Alpine)": [{"eco": null, "terrain": null, "distances": [1.13, 2.74, 4.83]}], "Skier (Nordic)": [{"eco": "Dry", "terrain": null, "distances": [1.93, 4.35, 6.44]}, {"eco": null, "terrain": null, "distances": [1.61, 3.54, 6.44]}], "Snowboarder": [{"eco": null, "terrain": null, "distances": [1.61, 3.22, 6.12]}], "Snowmobiler": [{"eco": "Dry", "terrain": null, "distances": [1.61, 4.83, 14.0]}, {"eco": "Temperate", "terrain": "Flat", "distances": [1.29, 4.67, 41.04]}, {"eco": null, "terrain": null, "distances": [3.22, 6.44, 11.1]}], "Substance Abuse": [{"eco": null, "terrain": null, "distances": [0.48, 1.13, 4.18]}]};let currentMode=null,ippMarker=null,segmentLayer=L.layerGroup();var fetchedSegments=[];var contourLayer=L.layerGroup();
+        const segmentColors=['#ef4444','#3b82f6','#22c55e','#f59e0b','#a855f7','#ec4899','#06b6d4','#84cc16'];
+        const map=L.map('map',{zoomControl:false}).setView([35.2,-111.65],10);
+        L.control.zoom({position:'topright'}).addTo(map);
+        segmentLayer.addTo(map);contourLayer.addTo(map);
+        var basemaps={
+            topo:L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:17,attribution:'OpenTopoMap'}),
+            usgs:L.tileLayer('https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}',{maxZoom:16,attribution:'USGS National Map'}),
+            osm:L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'OpenStreetMap'})
+        };
+        var activeBasemap=basemaps.topo;
+        activeBasemap.addTo(map);
+        var topoFailed=false;
+        activeBasemap.on('tileerror',function(){
+            if(!topoFailed){topoFailed=true;console.warn('OpenTopoMap tiles failed — falling back to USGS Topo');switchBasemap('usgs',document.querySelectorAll('.basemap-btn')[1]);}
+        });
+        function switchBasemap(key,btn){
+            if(activeBasemap)map.removeLayer(activeBasemap);
+            activeBasemap=basemaps[key];activeBasemap.addTo(map);
+            document.querySelectorAll('.basemap-btn').forEach(function(b){b.classList.remove('active');});
+            if(btn)btn.classList.add('active');
+        }
+        /* --- Measure Tool --- */
+        var measureMode=false,measurePoints=[],measureLines=[],measureMarkers=[],measureTotalDist=0;
+        var MeasureControl=L.Control.extend({options:{position:'topleft'},onAdd:function(){var container=L.DomUtil.create('div','measure-control leaflet-bar');container.innerHTML='<button class="measure-btn" id="measureBtn" title="Measure distance"><svg viewBox="0 0 24 24"><path d="M2 12h5l3-9 4 18 3-9h5"/></svg>Measure</button>';L.DomEvent.disableClickPropagation(container);L.DomEvent.on(container,'click',function(){toggleMeasure();});return container;}});
+        map.addControl(new MeasureControl());
+        /* --- Legend Control --- */
+        var LegendControl=L.Control.extend({options:{position:'topleft'},onAdd:function(){var container=L.DomUtil.create('div','legend-control leaflet-bar');container.innerHTML='<button class="legend-btn" id="legendBtn" title="Toggle map legend"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="3" rx="1"/><rect x="14" y="9" width="7" height="3" rx="1"/><rect x="3" y="14" width="18" height="3" rx="1"/><rect x="3" y="20" width="12" height="3" rx="1"/></svg>Legend</button><div class="legend-body" id="legendBody"><div style="font-size:11px;font-weight:600;color:var(--text-primary);margin-bottom:8px;">Find probability density</div><div style="display:flex;gap:10px;margin-bottom:10px;"><canvas id="legendGradient" width="16" height="90" style="border-radius:3px;border:1px solid var(--border);"></canvas><div style="display:flex;flex-direction:column;justify-content:space-between;font-size:10px;color:var(--text-muted);"><span>High</span><span>Low</span></div></div><div style="border-top:1px solid var(--border);padding-top:8px;margin-top:4px;"><div style="font-size:10px;font-weight:600;color:var(--text-primary);margin-bottom:6px;">TARR contours</div><div class="legend-row"><span class="legend-swatch" style="background:#ffffff;"></span><span>25th percentile</span></div><div class="legend-row"><span class="legend-swatch" style="background:#ffca00;"></span><span>50th percentile</span></div><div class="legend-row"><span class="legend-swatch" style="background:#ff6a1a;"></span><span>75th percentile</span></div></div><div style="border-top:1px solid var(--border);padding-top:6px;margin-top:8px;font-size:10px;color:var(--text-muted);line-height:1.4;">Color = log-normal probability density from subject profile. Radius-independent.</div></div>';L.DomEvent.disableClickPropagation(container);L.DomEvent.on(container.querySelector('#legendBtn'),'click',function(){var body=document.getElementById('legendBody');body.classList.toggle('open');if(body.classList.contains('open')){paintLegendGradient();}});return container;}});
+        map.addControl(new LegendControl());
+        function paintLegendGradient(){var c=document.getElementById('legendGradient');if(!c)return;var ctx=c.getContext('2d');var h=c.height,w=c.width;var stops=[[0,'rgb(210,45,35)'],[0.10,'rgb(232,70,38)'],[0.20,'rgb(240,120,30)'],[0.32,'rgb(232,184,32)'],[0.45,'rgb(180,210,40)'],[0.58,'rgb(80,195,60)'],[0.70,'rgb(46,165,92)'],[0.80,'rgb(46,140,160)'],[0.90,'rgb(43,108,196)'],[1.0,'rgb(30,80,180)']];var grad=ctx.createLinearGradient(0,0,0,h);stops.forEach(function(s){grad.addColorStop(s[0],s[1]);});ctx.fillStyle=grad;ctx.fillRect(0,0,w,h);}
+        function haversine(a,b){var R=6371000,dLat=(b[0]-a[0])*Math.PI/180,dLng=(b[1]-a[1])*Math.PI/180,lat1=a[0]*Math.PI/180,lat2=b[0]*Math.PI/180;var x=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLng/2)*Math.sin(dLng/2);return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));}
+        function fmtDist(m){return m<1000?(Math.round(m)+' m'):(m/1000).toFixed(2)+' km';}
+        function downloadContoursKml(){var gj=window._contourGeojson;if(!gj||!gj.features||gj.features.length===0){alert('No contour data available.');return;}var NT='name';var kml='<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2">\n<Document>\n<'+NT+'>TARR Percentile Contours</'+NT+'>\n<description>Terrain-Aware Range Rings generated by WiSAR Decision Support Tool</description>\n';gj.features.forEach(function(f){var pname=f.properties.percentile+' Percentile TARR';var hex=f.properties.color.replace('#','');var r=parseInt(hex.substring(0,2),16),g=parseInt(hex.substring(2,4),16),b=parseInt(hex.substring(4,6),16);var kmlColor='40'+('0'+b.toString(16)).slice(-2)+('0'+g.toString(16)).slice(-2)+('0'+r.toString(16)).slice(-2);var lineColor='ff'+('0'+b.toString(16)).slice(-2)+('0'+g.toString(16)).slice(-2)+('0'+r.toString(16)).slice(-2);kml+='<Style id="style_'+f.properties.percentile+'"><LineStyle><color>'+lineColor+'</color><width>2</width></LineStyle><PolyStyle><color>'+kmlColor+'</color></PolyStyle></Style>\n';var geom=f.geometry;var polys=[];if(geom.type==='Polygon'){polys=[geom.coordinates];}else if(geom.type==='MultiPolygon'){polys=geom.coordinates;}polys.forEach(function(rings){var coords=rings[0].map(function(c){return c[0]+','+c[1]+',0';}).join(' ');kml+='<Placemark><'+NT+'>'+pname+'</'+NT+'><description>Threshold: '+(f.properties.threshold_m/1000).toFixed(2)+' km cost-distance</description><styleUrl>#style_'+f.properties.percentile+'</styleUrl><Polygon><outerBoundaryIs><LinearRing><coordinates>'+coords+'</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>\n';});});kml+='</Document>\n</kml>';var blob=new Blob([kml],{type:'application/vnd.google-earth.kml+xml'});var url=URL.createObjectURL(blob);var a=document.createElement('a');a.href=url;a.download='tarr_contours.kml';document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);}
+        function toggleMeasure(){measureMode=!measureMode;var btn=document.getElementById('measureBtn');if(measureMode){btn.classList.add('active');document.getElementById('map').style.cursor='crosshair';if(ippPlaceMode){ippPlaceMode=false;document.getElementById('ippDropBtn').style.borderColor='var(--border)';document.getElementById('ippDropBtn').style.background='var(--bg-input)';}}else{btn.classList.remove('active');document.getElementById('map').style.cursor='';clearMeasure();}}
+        function clearMeasure(){measureLines.forEach(function(l){map.removeLayer(l);});measureMarkers.forEach(function(m){map.removeLayer(m);});measureLines=[];measureMarkers=[];measurePoints=[];measureTotalDist=0;}
+        function addMeasurePoint(latlng){var pt=[latlng.lat,latlng.lng];measurePoints.push(pt);var dot=L.circleMarker(latlng,{radius:4,color:'#ffca00',fillColor:'#ffca00',fillOpacity:1,weight:2}).addTo(map);measureMarkers.push(dot);if(measurePoints.length>1){var prev=measurePoints[measurePoints.length-2],cur=pt;var segDist=haversine(prev,cur);measureTotalDist+=segDist;var line=L.polyline([prev,cur],{color:'#ffca00',weight:2.5,dashArray:'6,6',opacity:0.9}).addTo(map);measureLines.push(line);var mid=[(prev[0]+cur[0])/2,(prev[1]+cur[1])/2];var segLabel=L.marker(mid,{icon:L.divIcon({className:'',html:'<div class="measure-label">'+fmtDist(segDist)+'</div>',iconSize:[0,0],iconAnchor:[0,0]})}).addTo(map);measureMarkers.push(segLabel);var totalLabel=L.marker(latlng,{icon:L.divIcon({className:'',html:'<div class="measure-total">Total: '+fmtDist(measureTotalDist)+'</div>',iconSize:[0,0],iconAnchor:[0,0]})}).addTo(map);measureMarkers.push(totalLabel);}}
+        document.addEventListener('keydown',function(e){if(e.key==='Escape'&&measureMode){toggleMeasure();}});
+        const ippIcon=L.divIcon({className:'',html:'<div style="width:20px;height:20px;background:#ff3333;border:3px solid white;border-radius:50%;box-shadow:0 0 12px rgba(255,51,51,0.6),0 2px 6px rgba(0,0,0,0.4);"></div>',iconSize:[20,20],iconAnchor:[10,10]});
+        function selectMode(mode){currentMode=mode;document.getElementById('splashModal').classList.add('hidden');if(mode==='ipp'){document.getElementById('modeSubtitle').innerHTML='<span class="mode-badge ipp-only">IPP Only</span>';document.getElementById('caltopoSection').classList.add('hidden');document.getElementById('radiusSection').classList.remove('hidden');document.getElementById('bufferSection').classList.add('hidden');}else{document.getElementById('modeSubtitle').innerHTML='<span class="mode-badge caltopo">CalTopo Import</span>';document.getElementById('caltopoSection').classList.remove('hidden');document.getElementById('radiusSection').classList.add('hidden');document.getElementById('bufferSection').classList.remove('hidden');}}
+        function setStatus(t,m){var b=document.getElementById('statusBar'),x=document.getElementById('statusText');b.className='status-bar visible '+t;x.textContent=m;}
+        function setIppStatus(t,m){var b=document.getElementById('ippStatusBar'),x=document.getElementById('ippStatusText');b.className='status-bar visible '+t;x.textContent=m;}
+        function setAnalysisStatus(t,m){var b=document.getElementById('analysisStatusBar'),x=document.getElementById('analysisStatusText');b.className='status-bar visible '+t;x.textContent=m;}
+        function checkRunButton(){var hasIPP=ippMarker!==null;var hasPct=document.getElementById('pct25').value&&document.getElementById('pct50').value&&document.getElementById('pct75').value;document.getElementById('runBtn').disabled=!(hasIPP&&hasPct);document.getElementById('runBtn').textContent='Generate Probability Surface';if(hasPct){var p75=parseFloat(document.getElementById('pct75').value)||0;if(p75>0&&currentMode){var needed=p75*1000+1000;if(currentMode==='ipp'){var radius=parseInt(document.getElementById('radiusInput').value)||5000;if(needed>radius){setAnalysisStatus('info','Note: Radius ('+radius+'m) is smaller than 75th percentile + 1 km ('+needed+'m). It will be auto-adjusted when you run the analysis.');}}else{var buffer=parseInt(document.getElementById('bufferInput').value)||2000;if(needed>buffer){setAnalysisStatus('info','Note: Buffer ('+buffer+'m) is smaller than 75th percentile + 1 km ('+needed+'m). It will be auto-adjusted when you run the analysis.');}}}}if(!hasPct&&hasIPP){setAnalysisStatus('info','Select a subject profile or enter percentiles to enable analysis.');}}
+        document.getElementById('pct25').addEventListener('input',checkRunButton);
+        document.getElementById('pct50').addEventListener('input',checkRunButton);
+        document.getElementById('pct75').addEventListener('input',checkRunButton);
+        function placeIPP(lat,lng,source){if(ippMarker)map.removeLayer(ippMarker);ippMarker=L.marker([lat,lng],{icon:ippIcon,draggable:true}).addTo(map).bindPopup('<div class="popup-title">Initial Planning Point</div><div class="popup-detail">Lat: '+lat.toFixed(6)+'<br>Lng: '+lng.toFixed(6)+'<br>Source: '+source+'<br><em>Drag to reposition</em></div>');document.getElementById('ippInput').value=lat.toFixed(6)+', '+lng.toFixed(6);ippMarker.on('dragend',function(e){var pos=e.target.getLatLng();document.getElementById('ippInput').value=pos.lat.toFixed(6)+', '+pos.lng.toFixed(6);ippMarker.setPopupContent('<div class="popup-title">Initial Planning Point</div><div class="popup-detail">Lat: '+pos.lat.toFixed(6)+'<br>Lng: '+pos.lng.toFixed(6)+'<br>Source: Repositioned<br><em>Drag to reposition</em></div>');setIppStatus('success','IPP moved to '+pos.lat.toFixed(4)+', '+pos.lng.toFixed(4));});checkRunButton();}
+        
+        function setIPP(){var raw=document.getElementById('ippInput').value.trim();if(!raw){setIppStatus('error','Enter coordinates as: latitude, longitude');return;}var parts=raw.split(',').map(function(s){return parseFloat(s.trim());});if(parts.length!==2||isNaN(parts[0])||isNaN(parts[1])){setIppStatus('error','Invalid format. Use: 34.9200, -111.9100');return;}var lat=parts[0],lng=parts[1];if(lat<-90||lat>90||lng<-180||lng>180){setIppStatus('error','Coordinates out of range.');return;}placeIPP(lat,lng,'Manual entry');map.setView([lat,lng],14);setIppStatus('success','IPP set at '+lat.toFixed(4)+', '+lng.toFixed(4));}
+        function populateLPBDropdown(){var sel=document.getElementById('lpbCategory');var cats=Object.keys(LPB_DATA).sort();cats.forEach(function(c){var o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o);});}
+        populateLPBDropdown();
+        var lpbSelectedEco=null,lpbSelectedTerrain=null;
+        function makeLpbBtn(text,onClick){var btn=document.createElement('button');btn.textContent=text;btn.style.cssText='padding:6px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text-primary);font-family:inherit;font-size:13px;cursor:pointer;transition:border-color .2s,background .2s;';btn.onclick=onClick;return btn;}
+        function highlightBtn(container,activeBtn){container.querySelectorAll('button').forEach(function(b){b.style.borderColor='var(--border)';b.style.background='var(--bg-input)';});activeBtn.style.borderColor='var(--accent)';activeBtn.style.background='var(--accent-glow)';}
+        function onCategoryChange(){var cat=document.getElementById('lpbCategory').value;lpbSelectedEco=null;lpbSelectedTerrain=null;document.getElementById('lpbEcoRow').classList.add('hidden');document.getElementById('lpbTerrainRow').classList.add('hidden');document.getElementById('lpbSource').classList.add('hidden');if(!cat){document.getElementById('pct25').value='';document.getElementById('pct50').value='';document.getElementById('pct75').value='';checkRunButton();return;}var entries=LPB_DATA[cat];var ecos=[];entries.forEach(function(e){if(e.eco&&ecos.indexOf(e.eco)<0)ecos.push(e.eco);});if(ecos.length===0){applyLPB(cat,null,null);return;}var ecoDiv=document.getElementById('lpbEcoBtns');ecoDiv.innerHTML='';ecos.forEach(function(eco){var btn=makeLpbBtn(eco,function(){lpbSelectedEco=eco;highlightBtn(ecoDiv,btn);onEcoChange(cat,eco);});ecoDiv.appendChild(btn);});if(entries.some(function(e){return e.eco===null;})){var btn=makeLpbBtn('Other/Default',function(){lpbSelectedEco=null;highlightBtn(ecoDiv,btn);applyLPB(cat,null,null);document.getElementById('lpbTerrainRow').classList.add('hidden');});ecoDiv.appendChild(btn);}document.getElementById('lpbEcoRow').classList.remove('hidden');document.getElementById('lpbTerrainRow').classList.add('hidden');}
+        function onEcoChange(cat,eco){lpbSelectedTerrain=null;var entries=LPB_DATA[cat].filter(function(e){return e.eco===eco;});var terrains=[];entries.forEach(function(e){if(e.terrain&&terrains.indexOf(e.terrain)<0)terrains.push(e.terrain);});if(terrains.length===0){applyLPB(cat,eco,null);document.getElementById('lpbTerrainRow').classList.add('hidden');return;}var tDiv=document.getElementById('lpbTerrainBtns');tDiv.innerHTML='';terrains.forEach(function(t){var btn=makeLpbBtn(t,function(){lpbSelectedTerrain=t;highlightBtn(tDiv,btn);applyLPB(cat,eco,t);});tDiv.appendChild(btn);});if(entries.some(function(e){return e.terrain===null;})){var btn=makeLpbBtn('Other/Default',function(){lpbSelectedTerrain=null;highlightBtn(tDiv,btn);applyLPB(cat,eco,null);});tDiv.appendChild(btn);}document.getElementById('lpbTerrainRow').classList.remove('hidden');}
+        function applyLPB(cat,eco,terrain){var entries=LPB_DATA[cat];var match=entries.find(function(e){return e.eco===eco&&e.terrain===terrain;});if(!match)match=entries.find(function(e){return e.eco===eco&&e.terrain===null;});if(!match)match=entries.find(function(e){return e.eco===null&&e.terrain===null;});if(!match)match=entries[entries.length-1];document.getElementById('pct25').value=match.distances[0];document.getElementById('pct50').value=match.distances[1];document.getElementById('pct75').value=match.distances[2];document.getElementById('lpbSource').classList.remove('hidden');checkRunButton();}
+        function switchMode(){clearMeasure();if(measureMode){measureMode=false;document.getElementById('measureBtn').classList.remove('active');}if(window.costOverlay)map.removeLayer(window.costOverlay);if(window.pctOverlay)map.removeLayer(window.pctOverlay);if(window.terrainOverlay)map.removeLayer(window.terrainOverlay);window.costOverlay=null;window.pctOverlay=null;window.terrainOverlay=null;contourLayer.clearLayers();if(ippMarker)map.removeLayer(ippMarker);ippMarker=null;segmentLayer.clearLayers();map.setView([35.2,-111.65],10);fetchedSegments=[];document.getElementById('splashModal').classList.remove('hidden');document.getElementById('layerToggles').classList.add('hidden');document.getElementById('poaSection')&&(document.getElementById('poaSection').classList.add('hidden'));document.getElementById('downloadSection')&&(document.getElementById('downloadSection').classList.add('hidden'));document.getElementById('analysisStatusBar').className='status-bar';document.getElementById('ippStatusBar').className='status-bar';document.getElementById('statusBar')&&(document.getElementById('statusBar').className='status-bar');document.getElementById('segmentList')&&(document.getElementById('segmentList').style.display='none');document.getElementById('loadSegsBtn')&&(document.getElementById('loadSegsBtn').classList.add('hidden'));document.getElementById('pct25').value='';document.getElementById('pct50').value='';document.getElementById('pct75').value='';document.getElementById('lpbCategory').selectedIndex=0;lpbSelectedEco=null;lpbSelectedTerrain=null;document.getElementById('lpbEcoRow').classList.add('hidden');document.getElementById('lpbTerrainRow').classList.add('hidden');document.getElementById('lpbSource').classList.add('hidden');document.getElementById('coordEntryDiv').classList.add('hidden');document.getElementById('dropPinDiv').classList.add('hidden');document.getElementById('map').style.cursor='';ippPlaceMode=false;checkRunButton();}
+        function resetTool(){clearMeasure();if(measureMode){measureMode=false;document.getElementById('measureBtn').classList.remove('active');}if(window.costOverlay)map.removeLayer(window.costOverlay);if(window.pctOverlay)map.removeLayer(window.pctOverlay);if(window.terrainOverlay)map.removeLayer(window.terrainOverlay);window.costOverlay=null;window.pctOverlay=null;window.terrainOverlay=null;contourLayer.clearLayers();if(ippMarker)map.removeLayer(ippMarker);ippMarker=null;segmentLayer.clearLayers();map.setView([35.2,-111.65],10);fetchedSegments=[];document.getElementById('layerToggles').classList.add('hidden');document.getElementById('poaSection')&&(document.getElementById('poaSection').classList.add('hidden'));document.getElementById('downloadSection')&&(document.getElementById('downloadSection').classList.add('hidden'));document.getElementById('analysisStatusBar').className='status-bar';document.getElementById('ippStatusBar').className='status-bar';document.getElementById('statusBar')&&(document.getElementById('statusBar').className='status-bar');document.getElementById('segmentList')&&(document.getElementById('segmentList').style.display='none');document.getElementById('loadSegsBtn')&&(document.getElementById('loadSegsBtn').classList.add('hidden'));document.getElementById('pct25').value='';document.getElementById('pct50').value='';document.getElementById('pct75').value='';document.getElementById('lpbCategory').selectedIndex=0;lpbSelectedEco=null;lpbSelectedTerrain=null;document.getElementById('lpbEcoRow').classList.add('hidden');document.getElementById('lpbTerrainRow').classList.add('hidden');document.getElementById('lpbSource').classList.add('hidden');document.getElementById('coordEntryDiv').classList.add('hidden');document.getElementById('dropPinDiv').classList.add('hidden');if(document.getElementById('mapIdInput'))document.getElementById('mapIdInput').value='';if(document.getElementById('radiusInput'))document.getElementById('radiusInput').value='5000';if(document.getElementById('bufferInput'))document.getElementById('bufferInput').value='2000';document.getElementById('map').style.cursor='';ippPlaceMode=false;checkRunButton();setIppStatus('info','IPP cleared. Choose a method above to set a new one.');}
+        function showCoordEntry(){document.getElementById('coordEntryDiv').classList.remove('hidden');document.getElementById('dropPinDiv').classList.add('hidden');document.getElementById('ippCoordBtn').style.borderColor='var(--accent)';document.getElementById('ippCoordBtn').style.background='var(--accent-glow)';document.getElementById('ippDropBtn').style.borderColor='var(--border)';document.getElementById('ippDropBtn').style.background='var(--bg-input)';ippPlaceMode=false;document.getElementById('map').style.cursor='';}
+        function activateDropPin(){document.getElementById('dropPinDiv').classList.remove('hidden');document.getElementById('coordEntryDiv').classList.add('hidden');document.getElementById('ippDropBtn').style.borderColor='var(--accent)';document.getElementById('ippDropBtn').style.background='var(--accent-glow)';document.getElementById('ippCoordBtn').style.borderColor='var(--border)';document.getElementById('ippCoordBtn').style.background='var(--bg-input)';ippPlaceMode=true;document.getElementById('map').style.cursor='crosshair';setIppStatus('info','Click on the map to place the IPP.');}
+        var ippPlaceMode=false;map.on('click',function(e){if(measureMode){addMeasurePoint(e.latlng);return;}if(!currentMode||!ippPlaceMode)return;placeIPP(e.latlng.lat,e.latlng.lng,'Map click');setIppStatus('success','IPP placed at '+e.latlng.lat.toFixed(4)+', '+e.latlng.lng.toFixed(4));ippPlaceMode=false;document.getElementById('map').style.cursor='';document.getElementById('dropPinHint').textContent='IPP placed. Click the map again to move it, or proceed below.';document.getElementById('ippDropBtn').style.borderColor='var(--success)';document.getElementById('ippDropBtn').style.background='rgba(34,197,94,0.1)';});
+        async function fetchSegments(){var mapId=document.getElementById('mapIdInput').value.trim();if(!mapId){setStatus('error','Please enter a CalTopo Map ID.');return;}var btn=document.getElementById('fetchBtn');btn.disabled=true;btn.innerHTML='<span class="spinner"></span> Retrieving...';setStatus('info','Connecting to CalTopo via server...');try{var response=await fetch('/api/caltopo/'+mapId);var data=await response.json();if(data.status!=='ok')throw new Error(data.message||'Unknown error');var segments=data.segments.features;if(segments.length===0){setStatus('error','No segments found.');btn.disabled=false;btn.textContent='Retrieve Segments';return;}segmentLayer.clearLayers();var listContainer=document.getElementById('segmentItems');listContainer.innerHTML='';fetchedSegments=segments;segments.forEach(function(seg,i){var color=segmentColors[i%segmentColors.length];var title=seg.properties.title||'Segment '+(i+1);var number=seg.properties.number||'';var numV=seg.geometry.coordinates[0].length;var item=document.createElement('div');item.className='segment-item';item.style.display='flex';item.style.alignItems='center';item.style.gap='10px';item.innerHTML='<input type="checkbox" class="seg-check" data-seg-index="'+i+'" checked style="flex-shrink:0;width:16px;height:16px;cursor:pointer;"><div style="flex:1;"><div class="seg-name" style="color:'+color+';">'+title+'</div><div class="seg-meta">'+(number?number+' &middot; ':'')+numV+' vertices &middot; '+(seg.properties.resourceType||'GROUND')+'</div></div>';listContainer.appendChild(item);});document.getElementById('loadSegsBtn').classList.remove('hidden');document.getElementById('segmentList').style.display='block';document.getElementById('segmentCount').textContent=segments.length+' found';if(data.ipp){placeIPP(data.ipp.lat,data.ipp.lng,'CalTopo marker');setIppStatus('success','IPP auto-detected at '+data.ipp.lat.toFixed(4)+', '+data.ipp.lng.toFixed(4));setStatus('success','Retrieved '+segments.length+' segments + IPP.');}else{setStatus('success','Retrieved '+segments.length+' segments. Set IPP manually.');}}catch(err){console.error(err);setStatus('error','Failed: '+err.message);}btn.disabled=false;btn.textContent='Retrieve Segments';}
+        function loadSelectedSegments(){segmentLayer.clearLayers();var count=0;document.querySelectorAll('.seg-check:checked').forEach(function(cb){var idx=parseInt(cb.getAttribute('data-seg-index'));var seg=fetchedSegments[idx];if(!seg)return;var color=segmentColors[idx%segmentColors.length];var title=seg.properties.title||'Segment '+(idx+1);var number=seg.properties.number||'';var numV=seg.geometry.coordinates[0].length;seg.properties._segIdx=idx;var layer=L.geoJSON(seg,{style:{color:color,weight:2,opacity:0.9,fillColor:color,fillOpacity:0.15}}).bindPopup('<div class="popup-title">'+title+'</div><div class="popup-detail">Number: '+number+'<br>Status: '+(seg.properties.status||'N/A')+'<br>Resource Type: '+(seg.properties.resourceType||'N/A')+'<br>Vertices: '+numV+'</div>');segmentLayer.addLayer(layer);count++;});if(count===0){setStatus('error','No segments selected.');return;}var allBounds=L.featureGroup(segmentLayer.getLayers()).getBounds();map.fitBounds(allBounds,{padding:[50,50]});setStatus('success',count+' segments loaded on map.');}
+        function runAnalysis(){var p25=parseFloat(document.getElementById('pct25').value)||0,p50=parseFloat(document.getElementById('pct50').value)||0,p75=parseFloat(document.getElementById('pct75').value)||0;var hasPct=p25>0&&p50>0&&p75>0;if(hasPct&&(p25>=p50||p50>=p75)){setAnalysisStatus('error','Percentiles must be three increasing values in km.');return;}if(hasPct){var p75m=p75*1000;var needed=p75m+1000;if(currentMode==='ipp'){var radius=parseInt(document.getElementById('radiusInput').value)||5000;if(needed>radius){document.getElementById('radiusInput').value=needed;setAnalysisStatus('info','Radius auto-adjusted to '+needed+'m to fit 75th percentile ('+p75+' km + 1 km buffer).');}}else{var buffer=parseInt(document.getElementById('bufferInput').value)||2000;if(needed>buffer){document.getElementById('bufferInput').value=needed;setAnalysisStatus('info','Buffer auto-adjusted to '+needed+'m to fit 75th percentile ('+p75+' km + 1 km buffer).');}}}var ipp=ippMarker.getLatLng();var params={mode:currentMode,ipp:{lat:ipp.lat,lng:ipp.lng}};if(hasPct){params.percentiles={p25:p25,p50:p50,p75:p75};}if(currentMode==='ipp'){params.radius=parseInt(document.getElementById('radiusInput').value)||5000;}else{params.buffer=parseInt(document.getElementById('bufferInput').value)||2000;var selectedSegs=[];document.querySelectorAll('.seg-check:checked').forEach(function(cb){var idx=parseInt(cb.getAttribute('data-seg-index'));if(fetchedSegments[idx])selectedSegs.push(fetchedSegments[idx]);});if(selectedSegs.length===0){setAnalysisStatus('error','Select at least one segment.');return;}params.segments={type:'FeatureCollection',features:selectedSegs};}document.getElementById('runBtn').disabled=true;
+            var msgs=['Calculating bounding box...','Downloading elevation data (USGS 3DEP)...','Downloading land cover data (NLCD)...','Downloading trails, roads, and waterways (OSM)...','Building friction surface from land cover...','Burning in trails and roads...','Running anisotropic cost-distance from IPP (this is the slow step)...','Generating probability surface...'];
+            var msgIdx=0;
+            setAnalysisStatus('info',msgs[0]);
+            var progressTimer=setInterval(function(){msgIdx++;if(msgIdx<msgs.length){setAnalysisStatus('info',msgs[msgIdx]);}else{setAnalysisStatus('info','Still processing... almost there.');}},8000);fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(params)}).then(function(r){return r.json();}).then(function(data){if(data.status!=='ok')throw new Error(data.message);setAnalysisStatus('success','Analysis complete. Use layer toggles to explore.');
+                document.getElementById('downloadSection').classList.remove('hidden');
+                document.getElementById('dlCostPng').href='/api/results/'+data.analysis_id+'/cost_surface.png';
+                document.getElementById('dlTerrainPng').href='/api/results/'+data.analysis_id+'/terrain.png';
+                document.getElementById('dlCostDist').href='/api/results/'+data.analysis_id+'/cost_distance.tif';
+                document.getElementById('dlCostSurf').href='/api/results/'+data.analysis_id+'/cost_surface.tif';
+                if(data.poa_results&&data.poa_results.length>0){var poaDiv=document.getElementById('poaResults');poaDiv.innerHTML='';data.poa_results.forEach(function(seg,i){var row=document.createElement('div');row.style.cssText='display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px solid var(--border);font-size:13px;cursor:pointer;';if(i%2===1)row.style.backgroundColor='var(--bg-input)';row.onclick=(function(segIndex){return function(){var layers=segmentLayer.getLayers();for(var li=0;li<layers.length;li++){var lyr=layers[li];var feature=null;lyr.eachLayer(function(sub){feature=sub;});if(feature){var props=feature.feature.properties;var segTitle=props.title||'';if(segTitle===data.poa_results[segIndex].title){map.fitBounds(lyr.getBounds(),{padding:[50,50]});lyr.openPopup();var origStyle={fillOpacity:0.15,weight:2};feature.setStyle({fillOpacity:0.6,weight:4,fillColor:'#ffca00'});setTimeout(function(){feature.setStyle({fillOpacity:0.15,weight:4,fillColor:'#ffca00'});},300);setTimeout(function(){feature.setStyle({fillOpacity:0.6,weight:4,fillColor:'#ffca00'});},600);setTimeout(function(){feature.setStyle({fillOpacity:0.15,weight:4,fillColor:'#ffca00'});},900);setTimeout(function(){feature.setStyle(origStyle);var color=segmentColors[parseInt(feature.feature.properties._segIdx||0)%segmentColors.length];feature.setStyle({color:color,fillColor:color,weight:2,opacity:0.9,fillOpacity:0.15});},1200);break;}}};};})(i);row.innerHTML='<div><span style="font-weight:600;color:var(--text-primary);">'+(i+1)+'. '+seg.title+'</span><br><span style="font-size:11px;color:var(--text-muted);">'+(seg.number?seg.number+' · ':'')+seg.resource_type+'</span></div><div style="text-align:right;"><span style="font-weight:700;font-size:15px;color:var(--accent);">'+seg.poa.toFixed(1)+'%</span><br><span style="font-size:11px;color:var(--text-muted);">Cumulative POA: '+seg.cumulative_poa.toFixed(1)+'%</span></div>';poaDiv.appendChild(row);});var totalPoa=0;data.poa_results.forEach(function(seg){totalPoa+=seg.poa;});var summary=document.createElement('div');summary.style.cssText='padding:10px;margin-top:8px;background:var(--accent-glow);border:1px solid rgba(59,130,246,0.3);border-radius:6px;font-size:13px;color:var(--accent);text-align:center;';summary.innerHTML='<strong>'+data.poa_results.length+' segments ranked</strong> — POA normalized across defined segments';poaDiv.appendChild(summary);document.getElementById('poaSection').classList.remove('hidden');}
+                if(data.has_percentiles){document.getElementById('dlPctPng').style.display='block';document.getElementById('dlPctPng').href='/api/results/'+data.analysis_id+'/percentiles.png';document.getElementById('dlProb').style.display='block';document.getElementById('dlProb').href='/api/results/'+data.analysis_id+'/probability.tif';if(data.contour_geojson){window._contourGeojson=data.contour_geojson;document.getElementById('dlContoursKml').style.display='block';}else{document.getElementById('dlContoursKml').style.display='none';}}else{document.getElementById('dlPctPng').style.display='none';document.getElementById('dlProb').style.display='none';document.getElementById('dlContoursKml').style.display='none';}var bounds=[[data.bounds.south,data.bounds.west],[data.bounds.north,data.bounds.east]];if(window.costOverlay){map.removeLayer(window.costOverlay);}if(window.pctOverlay){map.removeLayer(window.pctOverlay);}contourLayer.clearLayers();var aid=data.analysis_id;window.costOverlay=L.imageOverlay('/api/results/'+aid+'/cost_surface.png?t='+Date.now(),bounds,{opacity:0.6});window.pctOverlay=null;if(window.terrainOverlay){map.removeLayer(window.terrainOverlay);}window.terrainOverlay=L.imageOverlay('/api/results/'+aid+'/terrain.png?t='+Date.now(),bounds,{opacity:0.6});window.costOverlay.on('load',function(){if(data.has_percentiles&&data.contour_geojson){contourLayer.clearLayers();data.contour_geojson.features.forEach(function(f){var style={color:f.properties.color,weight:3,opacity:0.9,fillColor:f.properties.color,fillOpacity:0.08,dashArray:null};var layer=L.geoJSON(f,{style:style});contourLayer.addLayer(layer);var labelIcon=L.divIcon({className:'',html:'<div style="background:rgba(30,30,30,0.65);color:'+f.properties.color+';padding:4px 12px;border-radius:4px;font-size:13px;font-weight:700;font-family:sans-serif;white-space:nowrap;letter-spacing:0.5px;line-height:1;text-align:center;min-width:36px;">'+f.properties.percentile+'</div>',iconSize:[null,null],iconAnchor:[0,12],iconAnchor:[0,10]});var bounds=layer.getBounds();var labelLat=f.properties.label_lat||bounds.getCenter().lat;var labelLng=bounds.getEast();contourLayer.addLayer(L.marker([labelLat,labelLng],{icon:labelIcon,interactive:false}));});}});window.costOverlay.addTo(map);map.fitBounds(bounds);document.getElementById('layerToggles').classList.remove('hidden');document.getElementById('costToggle').checked=true;document.getElementById('pctToggle').checked=data.has_percentiles;if(!data.has_percentiles){document.getElementById('pctToggle').disabled=true;document.getElementById('pctToggle').parentElement.style.opacity='0.4';}else{document.getElementById('pctToggle').disabled=false;document.getElementById('pctToggle').parentElement.style.opacity='1';}clearInterval(progressTimer);document.getElementById('runBtn').disabled=false;}).catch(function(err){setAnalysisStatus('error','Failed: '+err.message);clearInterval(progressTimer);document.getElementById('runBtn').disabled=false;});}
+    </script>
+</body>
+</html>
