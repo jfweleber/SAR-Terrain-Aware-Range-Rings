@@ -39,10 +39,10 @@
     <link rel="icon" type="image/x-icon" href="/static/weleber-fav.png">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <!-- CSS custom properties (variables) define the dark theme palette.
+     <!-- CSS custom properties (variables) define the dark theme palette.
          Using variables instead of hardcoded colors means the entire theme
          can be changed by editing these values in one place. -->
-    <style>
+	<style>
         @import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@300;400;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
         :root{--bg-primary:#0f1114;--bg-panel:#1a1d23;--bg-input:#252830;--border:#2e3138;--text-primary:#e8e9ec;--text-secondary:#9498a3;--text-muted:#6b7080;--accent:#3b82f6;--accent-hover:#2563eb;--accent-glow:rgba(59,130,246,0.15);--success:#22c55e;--warning:#f59e0b;--danger:#ef4444}
         *{margin:0;padding:0;box-sizing:border-box}
@@ -161,7 +161,7 @@
          clearly state their scope to prevent over-reliance on any
          single data source during active search operations.
          ============================================================ -->
-    <div class="modal-overlay" id="splashModal">
+	<div class="modal-overlay" id="splashModal">
         <div class="modal">
             <h1>WiSAR Decision Support Tool</h1>
             <p class="modal-subtitle">Coconino County Sheriff&#39;s Search &amp; Rescue</p>
@@ -185,10 +185,17 @@
          Tracks all feature additions, bug fixes, and methodology
          changes across releases. Accessible from the footer link.
          ============================================================ -->
-    <div class="modal-overlay hidden" id="changelogModal" onclick="if(event.target===this)this.classList.add('hidden');" style="z-index:10000;">
+	<div class="modal-overlay hidden" id="changelogModal" onclick="if(event.target===this)this.classList.add('hidden');" style="z-index:10000;">
         <div class="modal" style="max-width:650px;max-height:90vh;overflow-y:auto;text-align:left;padding:32px;">
             <h2 style="text-align:center;font-size:22px;color:#ffca00;margin-bottom:4px;">Changelog</h2>
             <p style="text-align:center;font-size:13px;color:var(--text-muted);margin-bottom:24px;">WiSAR Decision Support Tool / SAR TARR Tool</p>
+            <div style="margin-bottom:24px;">
+                <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">v1.4 &#8212; March 29, 2026</h3>
+                <div style="font-size:13px;color:var(--text-secondary);line-height:1.7;">
+                    <p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Friction recalibration:</span> Land cover friction multipliers recalibrated to off-trail speed literature (Imhof 1950). Evergreen forest friction increased from 1.25 to 1.80, with proportional adjustments across all vegetation classes. Trail corridors now exert significantly stronger influence on cost-distance contours, particularly where trails traverse steep or densely forested terrain.</p>
+                    <p style="margin-bottom:0;"><span style="color:var(--text-primary);font-weight:600;">Contour fill removed:</span> TARR percentile contours now render as outlines only (zero fill). The probability density surface provides sufficient visual information without contour fill overlap.</p>
+                </div>
+            </div>
             <div style="margin-bottom:24px;">
                 <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">v1.3 &#8212; March 27, 2026</h3>
                 <div style="font-size:13px;color:var(--text-secondary);line-height:1.7;">
@@ -230,8 +237,7 @@
             </div>
         </div>
     </div>
-
-    <!-- ============================================================
+	<!-- ============================================================
          METADATA MODAL — Data sources, methodology, and references
          
          Documents the technical specifications of the analysis:
@@ -282,23 +288,23 @@
                 <table style="width:100%;border-collapse:collapse;font-size:12px;color:var(--text-secondary);">
                     <tr style="border-bottom:1px solid var(--border);background:var(--bg-input);"><th style="padding:5px 8px;text-align:left;color:var(--text-primary);">NLCD class</th><th style="padding:5px 8px;text-align:left;color:var(--text-primary);">Description</th><th style="padding:5px 8px;text-align:center;color:var(--text-primary);">IGT4SAR</th><th style="padding:5px 8px;text-align:center;color:var(--text-primary);">Friction</th></tr>
                     <tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 8px;">11</td><td style="padding:4px 8px;">Open Water</td><td style="padding:4px 8px;text-align:center;">99</td><td style="padding:4px 8px;text-align:center;">50.00</td></tr>
-                    <tr style="border-bottom:1px solid var(--border);background:var(--bg-input);"><td style="padding:4px 8px;">12</td><td style="padding:4px 8px;">Perennial Ice/Snow</td><td style="padding:4px 8px;text-align:center;">85</td><td style="padding:4px 8px;text-align:center;">3.00</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);background:var(--bg-input);"><td style="padding:4px 8px;">12</td><td style="padding:4px 8px;">Perennial Ice/Snow</td><td style="padding:4px 8px;text-align:center;">85</td><td style="padding:4px 8px;text-align:center;">50.00</td></tr>
                     <tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 8px;">21</td><td style="padding:4px 8px;">Developed, Open Space</td><td style="padding:4px 8px;text-align:center;">5</td><td style="padding:4px 8px;text-align:center;">1.00</td></tr>
-                    <tr style="border-bottom:1px solid var(--border);background:var(--bg-input);"><td style="padding:4px 8px;">22</td><td style="padding:4px 8px;">Developed, Low Intensity</td><td style="padding:4px 8px;text-align:center;">10</td><td style="padding:4px 8px;text-align:center;">1.02</td></tr>
-                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 8px;">23</td><td style="padding:4px 8px;">Developed, Medium Intensity</td><td style="padding:4px 8px;text-align:center;">15</td><td style="padding:4px 8px;text-align:center;">1.05</td></tr>
-                    <tr style="border-bottom:1px solid var(--border);background:var(--bg-input);"><td style="padding:4px 8px;">24</td><td style="padding:4px 8px;">Developed, High Intensity</td><td style="padding:4px 8px;text-align:center;">20</td><td style="padding:4px 8px;text-align:center;">1.08</td></tr>
-                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 8px;">31</td><td style="padding:4px 8px;">Barren Land</td><td style="padding:4px 8px;text-align:center;">30</td><td style="padding:4px 8px;text-align:center;">1.10</td></tr>
-                    <tr style="border-bottom:1px solid var(--border);background:var(--bg-input);"><td style="padding:4px 8px;">41</td><td style="padding:4px 8px;">Deciduous Forest</td><td style="padding:4px 8px;text-align:center;">45</td><td style="padding:4px 8px;text-align:center;">1.20</td></tr>
-                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 8px;">42</td><td style="padding:4px 8px;">Evergreen Forest</td><td style="padding:4px 8px;text-align:center;">50</td><td style="padding:4px 8px;text-align:center;">1.25</td></tr>
-                    <tr style="border-bottom:1px solid var(--border);background:var(--bg-input);"><td style="padding:4px 8px;">43</td><td style="padding:4px 8px;">Mixed Forest</td><td style="padding:4px 8px;text-align:center;">35</td><td style="padding:4px 8px;text-align:center;">1.15</td></tr>
-                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 8px;">52</td><td style="padding:4px 8px;">Shrub/Scrub</td><td style="padding:4px 8px;text-align:center;">45</td><td style="padding:4px 8px;text-align:center;">1.15</td></tr>
-                    <tr style="border-bottom:1px solid var(--border);background:var(--bg-input);"><td style="padding:4px 8px;">71</td><td style="padding:4px 8px;">Grassland/Herbaceous</td><td style="padding:4px 8px;text-align:center;">20</td><td style="padding:4px 8px;text-align:center;">1.05</td></tr>
-                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 8px;">81</td><td style="padding:4px 8px;">Pasture/Hay</td><td style="padding:4px 8px;text-align:center;">25</td><td style="padding:4px 8px;text-align:center;">1.08</td></tr>
-                    <tr style="border-bottom:1px solid var(--border);background:var(--bg-input);"><td style="padding:4px 8px;">82</td><td style="padding:4px 8px;">Cultivated Crops</td><td style="padding:4px 8px;text-align:center;">30</td><td style="padding:4px 8px;text-align:center;">1.10</td></tr>
-                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 8px;">90</td><td style="padding:4px 8px;">Woody Wetlands</td><td style="padding:4px 8px;text-align:center;">80</td><td style="padding:4px 8px;text-align:center;">2.00</td></tr>
-                    <tr><td style="padding:4px 8px;">95</td><td style="padding:4px 8px;">Emergent Herbaceous Wetlands</td><td style="padding:4px 8px;text-align:center;">80</td><td style="padding:4px 8px;text-align:center;">2.00</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);background:var(--bg-input);"><td style="padding:4px 8px;">22</td><td style="padding:4px 8px;">Developed, Low Intensity</td><td style="padding:4px 8px;text-align:center;">10</td><td style="padding:4px 8px;text-align:center;">1.05</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 8px;">23</td><td style="padding:4px 8px;">Developed, Medium Intensity</td><td style="padding:4px 8px;text-align:center;">15</td><td style="padding:4px 8px;text-align:center;">1.10</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);background:var(--bg-input);"><td style="padding:4px 8px;">24</td><td style="padding:4px 8px;">Developed, High Intensity</td><td style="padding:4px 8px;text-align:center;">20</td><td style="padding:4px 8px;text-align:center;">1.15</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 8px;">31</td><td style="padding:4px 8px;">Barren Land</td><td style="padding:4px 8px;text-align:center;">30</td><td style="padding:4px 8px;text-align:center;">1.30</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);background:var(--bg-input);"><td style="padding:4px 8px;">41</td><td style="padding:4px 8px;">Deciduous Forest</td><td style="padding:4px 8px;text-align:center;">45</td><td style="padding:4px 8px;text-align:center;">1.60</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 8px;">42</td><td style="padding:4px 8px;">Evergreen Forest</td><td style="padding:4px 8px;text-align:center;">50</td><td style="padding:4px 8px;text-align:center;">1.80</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);background:var(--bg-input);"><td style="padding:4px 8px;">43</td><td style="padding:4px 8px;">Mixed Forest</td><td style="padding:4px 8px;text-align:center;">35</td><td style="padding:4px 8px;text-align:center;">1.50</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 8px;">52</td><td style="padding:4px 8px;">Shrub/Scrub</td><td style="padding:4px 8px;text-align:center;">45</td><td style="padding:4px 8px;text-align:center;">1.60</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);background:var(--bg-input);"><td style="padding:4px 8px;">71</td><td style="padding:4px 8px;">Grassland/Herbaceous</td><td style="padding:4px 8px;text-align:center;">20</td><td style="padding:4px 8px;text-align:center;">1.15</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 8px;">81</td><td style="padding:4px 8px;">Pasture/Hay</td><td style="padding:4px 8px;text-align:center;">25</td><td style="padding:4px 8px;text-align:center;">1.15</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);background:var(--bg-input);"><td style="padding:4px 8px;">82</td><td style="padding:4px 8px;">Cultivated Crops</td><td style="padding:4px 8px;text-align:center;">30</td><td style="padding:4px 8px;text-align:center;">1.25</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 8px;">90</td><td style="padding:4px 8px;">Woody Wetlands</td><td style="padding:4px 8px;text-align:center;">80</td><td style="padding:4px 8px;text-align:center;">3.00</td></tr>
+                    <tr><td style="padding:4px 8px;">95</td><td style="padding:4px 8px;">Emergent Herbaceous Wetlands</td><td style="padding:4px 8px;text-align:center;">80</td><td style="padding:4px 8px;text-align:center;">3.00</td></tr>
                 </table>
-                <p style="font-size:11px;color:var(--text-muted);margin-top:6px;">Trails/roads from OSM assigned friction 1.00 regardless of underlying NLCD class.</p>
+                <p style="font-size:11px;color:var(--text-muted);margin-top:6px;">Trails/roads from OSM assigned friction 1.00 regardless of underlying NLCD class. Friction calibrated to Imhof (1950) off-trail velocity reduction (0.6x on-trail speed).</p>
             </div>
 
             <div style="margin-bottom:20px;">
@@ -354,15 +360,14 @@
                 <p style="font-size:12px;color:var(--text-secondary);">Jamie Weleber, Coconino County Sheriff's Search &amp; Rescue<br><a href="https://sar.weleber.net" style="color:var(--accent);">https://sar.weleber.net</a></p>
             </div>
 
-            <p style="font-size:11px;color:var(--text-muted);text-align:center;margin-bottom:16px;">Metadata Date: March 27, 2026 | Version 1.3</p>
+            <p style="font-size:11px;color:var(--text-muted);text-align:center;margin-bottom:16px;">Metadata Date: March 29, 2026 | Version 1.4</p>
 
             <div style="text-align:center;">
                 <button onclick="document.getElementById('metadataModal').classList.add('hidden');" style="padding:10px 32px;background:var(--accent);color:white;border:none;border-radius:6px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;">Close</button>
             </div>
         </div>
     </div>
-
-    <!-- ============================================================
+	<!-- ============================================================
          TARR EXPLAINER MODAL — Educational content
          
          A three-step visual explanation of how Terrain-Aware Range
@@ -481,8 +486,7 @@
             </div>
         </div>
     </div>
-
-    <!-- ============================================================
+	<!-- ============================================================
          SIDEBAR PANEL — Analysis controls and results
          
          Fixed-width panel containing all user inputs:
@@ -624,19 +628,18 @@
          
          The map fills the remaining viewport width (flex:1).
          Three basemap options:
-           - OpenTopoMap: contour lines and terrain shading (default)
-           - USGS National Map: .gov-hosted tiles (important for
-             Sheriff's office networks that may block non-.gov domains)
+           - OpenTopoMap: contour lines and terrain shading
+           - USGS National Map: .gov-hosted tiles (default)
            - OpenStreetMap: reliable fallback with street-level detail
          
          Automatic tile-error fallback logic switches to USGS if
          OpenTopoMap tiles fail to load (common with rate limiting).
          ============================================================ -->
-    <div id="map">
+	<div id="map">
         <div class="basemap-control">
-            <button class="basemap-btn active" onclick="switchBasemap('topo',this)" title="OpenTopoMap — contour lines &amp; terrain">Topo</button>
-            <button class="basemap-btn" onclick="switchBasemap('usgs',this)" title="USGS National Map — government-hosted topo tiles">USGS Topo</button>
-            <button class="basemap-btn" onclick="switchBasemap('osm',this)" title="OpenStreetMap — reliable fallback">Street</button>
+            <button class="basemap-btn" onclick="switchBasemap('topo',this)" title="OpenTopoMap — contour lines &amp; terrain">OpenTopo</button>
+            <button class="basemap-btn active" onclick="switchBasemap('usgs',this)" title="USGS National Map — government-hosted topo tiles">USGS Topo</button>
+            <button class="basemap-btn" onclick="switchBasemap('osm',this)" title="OpenStreetMap — reliable fallback">OpenStreet</button>
         </div>
     </div>
     <!-- ============================================================
@@ -672,7 +675,7 @@
             usgs:L.tileLayer('https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}',{maxZoom:16,attribution:'USGS National Map'}),
             osm:L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'OpenStreetMap'})
         };
-        var activeBasemap=basemaps.topo;
+        var activeBasemap=basemaps.usgs;
         activeBasemap.addTo(map);
         var topoFailed=false;
         activeBasemap.on('tileerror',function(){
@@ -694,7 +697,7 @@
         function paintLegendGradient(){var c=document.getElementById('legendGradient');if(!c)return;var ctx=c.getContext('2d');var h=c.height,w=c.width;var stops=[[0,'rgb(210,45,35)'],[0.10,'rgb(232,70,38)'],[0.20,'rgb(240,120,30)'],[0.32,'rgb(232,184,32)'],[0.45,'rgb(180,210,40)'],[0.58,'rgb(80,195,60)'],[0.70,'rgb(46,165,92)'],[0.80,'rgb(46,140,160)'],[0.90,'rgb(43,108,196)'],[1.0,'rgb(30,80,180)']];var grad=ctx.createLinearGradient(0,0,0,h);stops.forEach(function(s){grad.addColorStop(s[0],s[1]);});ctx.fillStyle=grad;ctx.fillRect(0,0,w,h);}
         function haversine(a,b){var R=6371000,dLat=(b[0]-a[0])*Math.PI/180,dLng=(b[1]-a[1])*Math.PI/180,lat1=a[0]*Math.PI/180,lat2=b[0]*Math.PI/180;var x=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLng/2)*Math.sin(dLng/2);return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));}
         function fmtDist(m){return m<1000?(Math.round(m)+' m'):(m/1000).toFixed(2)+' km';}
-        function downloadContoursKml(){var gj=window._contourGeojson;if(!gj||!gj.features||gj.features.length===0){alert('No contour data available.');return;}var NT='name';var kml='<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2">\n<Document>\n<'+NT+'>TARR Percentile Contours</'+NT+'>\n<description>Terrain-Aware Range Rings generated by WiSAR Decision Support Tool</description>\n';gj.features.forEach(function(f){var pname=f.properties.percentile+' Percentile TARR';var hex=f.properties.color.replace('#','');var r=parseInt(hex.substring(0,2),16),g=parseInt(hex.substring(2,4),16),b=parseInt(hex.substring(4,6),16);var kmlColor='40'+('0'+b.toString(16)).slice(-2)+('0'+g.toString(16)).slice(-2)+('0'+r.toString(16)).slice(-2);var lineColor='ff'+('0'+b.toString(16)).slice(-2)+('0'+g.toString(16)).slice(-2)+('0'+r.toString(16)).slice(-2);kml+='<Style id="style_'+f.properties.percentile+'"><LineStyle><color>'+lineColor+'</color><width>2</width></LineStyle><PolyStyle><color>'+kmlColor+'</color></PolyStyle></Style>\n';var geom=f.geometry;var polys=[];if(geom.type==='Polygon'){polys=[geom.coordinates];}else if(geom.type==='MultiPolygon'){polys=geom.coordinates;}polys.forEach(function(rings){var coords=rings[0].map(function(c){return c[0]+','+c[1]+',0';}).join(' ');kml+='<Placemark><'+NT+'>'+pname+'</'+NT+'><description>Threshold: '+(f.properties.threshold_m/1000).toFixed(2)+' km cost-distance</description><styleUrl>#style_'+f.properties.percentile+'</styleUrl><Polygon><outerBoundaryIs><LinearRing><coordinates>'+coords+'</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>\n';});});kml+='</Document>\n</kml>';var blob=new Blob([kml],{type:'application/vnd.google-earth.kml+xml'});var url=URL.createObjectURL(blob);var a=document.createElement('a');a.href=url;a.download='tarr_contours.kml';document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);}
+        function downloadContoursKml(){var gj=window._contourGeojson;if(!gj||!gj.features||gj.features.length===0){alert('No contour data available.');return;}var NT='name';var kml='<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2">\n<Document>\n<'+NT+'>TARR Percentile Contours</'+NT+'>\n<description>Terrain-Aware Range Rings generated by WiSAR Decision Support Tool</description>\n';gj.features.forEach(function(f){var pname=f.properties.percentile+' Percentile TARR';var hex=f.properties.color.replace('#','');var r=parseInt(hex.substring(0,2),16),g=parseInt(hex.substring(2,4),16),b=parseInt(hex.substring(4,6),16);var kmlColor='00'+('0'+b.toString(16)).slice(-2)+('0'+g.toString(16)).slice(-2)+('0'+r.toString(16)).slice(-2);var lineColor='ff'+('0'+b.toString(16)).slice(-2)+('0'+g.toString(16)).slice(-2)+('0'+r.toString(16)).slice(-2);kml+='<Style id="style_'+f.properties.percentile+'"><LineStyle><color>'+lineColor+'</color><width>2</width></LineStyle><PolyStyle><color>'+kmlColor+'</color></PolyStyle></Style>\n';var geom=f.geometry;var polys=[];if(geom.type==='Polygon'){polys=[geom.coordinates];}else if(geom.type==='MultiPolygon'){polys=geom.coordinates;}polys.forEach(function(rings){var coords=rings[0].map(function(c){return c[0]+','+c[1]+',0';}).join(' ');kml+='<Placemark><'+NT+'>'+pname+'</'+NT+'><description>Threshold: '+(f.properties.threshold_m/1000).toFixed(2)+' km cost-distance</description><styleUrl>#style_'+f.properties.percentile+'</styleUrl><Polygon><outerBoundaryIs><LinearRing><coordinates>'+coords+'</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>\n';});});kml+='</Document>\n</kml>';var blob=new Blob([kml],{type:'application/vnd.google-earth.kml+xml'});var url=URL.createObjectURL(blob);var a=document.createElement('a');a.href=url;a.download='tarr_contours.kml';document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);}
         function toggleMeasure(){measureMode=!measureMode;var btn=document.getElementById('measureBtn');if(measureMode){btn.classList.add('active');document.getElementById('map').style.cursor='crosshair';if(ippPlaceMode){ippPlaceMode=false;document.getElementById('ippDropBtn').style.borderColor='var(--border)';document.getElementById('ippDropBtn').style.background='var(--bg-input)';}}else{btn.classList.remove('active');document.getElementById('map').style.cursor='';clearMeasure();}}
         function clearMeasure(){measureLines.forEach(function(l){map.removeLayer(l);});measureMarkers.forEach(function(m){map.removeLayer(m);});measureLines=[];measureMarkers=[];measurePoints=[];measureTotalDist=0;}
         function addMeasurePoint(latlng){var pt=[latlng.lat,latlng.lng];measurePoints.push(pt);var dot=L.circleMarker(latlng,{radius:4,color:'#ffca00',fillColor:'#ffca00',fillOpacity:1,weight:2}).addTo(map);measureMarkers.push(dot);if(measurePoints.length>1){var prev=measurePoints[measurePoints.length-2],cur=pt;var segDist=haversine(prev,cur);measureTotalDist+=segDist;var line=L.polyline([prev,cur],{color:'#ffca00',weight:2.5,dashArray:'6,6',opacity:0.9}).addTo(map);measureLines.push(line);var mid=[(prev[0]+cur[0])/2,(prev[1]+cur[1])/2];var segLabel=L.marker(mid,{icon:L.divIcon({className:'',html:'<div class="measure-label">'+fmtDist(segDist)+'</div>',iconSize:[0,0],iconAnchor:[0,0]})}).addTo(map);measureMarkers.push(segLabel);var totalLabel=L.marker(latlng,{icon:L.divIcon({className:'',html:'<div class="measure-total">Total: '+fmtDist(measureTotalDist)+'</div>',iconSize:[0,0],iconAnchor:[0,0]})}).addTo(map);measureMarkers.push(totalLabel);}}
@@ -737,7 +740,7 @@
                 document.getElementById('dlCostDist').href='/api/results/'+data.analysis_id+'/cost_distance.tif';
                 document.getElementById('dlCostSurf').href='/api/results/'+data.analysis_id+'/cost_surface.tif';
                 if(data.poa_results&&data.poa_results.length>0){var poaDiv=document.getElementById('poaResults');poaDiv.innerHTML='';data.poa_results.forEach(function(seg,i){var row=document.createElement('div');row.style.cssText='display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px solid var(--border);font-size:13px;cursor:pointer;';if(i%2===1)row.style.backgroundColor='var(--bg-input)';row.onclick=(function(segIndex){return function(){var layers=segmentLayer.getLayers();for(var li=0;li<layers.length;li++){var lyr=layers[li];var feature=null;lyr.eachLayer(function(sub){feature=sub;});if(feature){var props=feature.feature.properties;var segTitle=props.title||'';if(segTitle===data.poa_results[segIndex].title){map.fitBounds(lyr.getBounds(),{padding:[50,50]});lyr.openPopup();var origStyle={fillOpacity:0.15,weight:2};feature.setStyle({fillOpacity:0.6,weight:4,fillColor:'#ffca00'});setTimeout(function(){feature.setStyle({fillOpacity:0.15,weight:4,fillColor:'#ffca00'});},300);setTimeout(function(){feature.setStyle({fillOpacity:0.6,weight:4,fillColor:'#ffca00'});},600);setTimeout(function(){feature.setStyle({fillOpacity:0.15,weight:4,fillColor:'#ffca00'});},900);setTimeout(function(){feature.setStyle(origStyle);var color=segmentColors[parseInt(feature.feature.properties._segIdx||0)%segmentColors.length];feature.setStyle({color:color,fillColor:color,weight:2,opacity:0.9,fillOpacity:0.15});},1200);break;}}};};})(i);row.innerHTML='<div><span style="font-weight:600;color:var(--text-primary);">'+(i+1)+'. '+seg.title+'</span><br><span style="font-size:11px;color:var(--text-muted);">'+(seg.number?seg.number+' · ':'')+seg.resource_type+'</span></div><div style="text-align:right;"><span style="font-weight:700;font-size:15px;color:var(--accent);">'+seg.poa.toFixed(1)+'%</span><br><span style="font-size:11px;color:var(--text-muted);">Cumulative POA: '+seg.cumulative_poa.toFixed(1)+'%</span></div>';poaDiv.appendChild(row);});var totalPoa=0;data.poa_results.forEach(function(seg){totalPoa+=seg.poa;});var summary=document.createElement('div');summary.style.cssText='padding:10px;margin-top:8px;background:var(--accent-glow);border:1px solid rgba(59,130,246,0.3);border-radius:6px;font-size:13px;color:var(--accent);text-align:center;';summary.innerHTML='<strong>'+data.poa_results.length+' segments ranked</strong> — POA normalized across defined segments';poaDiv.appendChild(summary);document.getElementById('poaSection').classList.remove('hidden');}
-                if(data.has_percentiles){document.getElementById('dlPctPng').style.display='block';document.getElementById('dlPctPng').href='/api/results/'+data.analysis_id+'/percentiles.png';document.getElementById('dlProb').style.display='block';document.getElementById('dlProb').href='/api/results/'+data.analysis_id+'/probability.tif';if(data.contour_geojson){window._contourGeojson=data.contour_geojson;document.getElementById('dlContoursKml').style.display='block';}else{document.getElementById('dlContoursKml').style.display='none';}}else{document.getElementById('dlPctPng').style.display='none';document.getElementById('dlProb').style.display='none';document.getElementById('dlContoursKml').style.display='none';}var bounds=[[data.bounds.south,data.bounds.west],[data.bounds.north,data.bounds.east]];if(window.costOverlay){map.removeLayer(window.costOverlay);}if(window.pctOverlay){map.removeLayer(window.pctOverlay);}contourLayer.clearLayers();var aid=data.analysis_id;window.costOverlay=L.imageOverlay('/api/results/'+aid+'/cost_surface.png?t='+Date.now(),bounds,{opacity:0.6});window.pctOverlay=null;if(window.terrainOverlay){map.removeLayer(window.terrainOverlay);}window.terrainOverlay=L.imageOverlay('/api/results/'+aid+'/terrain.png?t='+Date.now(),bounds,{opacity:0.6});window.costOverlay.on('load',function(){if(data.has_percentiles&&data.contour_geojson){contourLayer.clearLayers();data.contour_geojson.features.forEach(function(f){var style={color:f.properties.color,weight:3,opacity:0.9,fillColor:f.properties.color,fillOpacity:0.08,dashArray:null};var layer=L.geoJSON(f,{style:style});contourLayer.addLayer(layer);var labelIcon=L.divIcon({className:'',html:'<div style="background:rgba(30,30,30,0.65);color:'+f.properties.color+';padding:4px 12px;border-radius:4px;font-size:13px;font-weight:700;font-family:sans-serif;white-space:nowrap;letter-spacing:0.5px;line-height:1;text-align:center;min-width:36px;">'+f.properties.percentile+'</div>',iconSize:[null,null],iconAnchor:[0,12],iconAnchor:[0,10]});var bounds=layer.getBounds();var labelLat=f.properties.label_lat||bounds.getCenter().lat;var labelLng=bounds.getEast();contourLayer.addLayer(L.marker([labelLat,labelLng],{icon:labelIcon,interactive:false}));});}});window.costOverlay.addTo(map);map.fitBounds(bounds);document.getElementById('layerToggles').classList.remove('hidden');document.getElementById('costToggle').checked=true;document.getElementById('pctToggle').checked=data.has_percentiles;if(!data.has_percentiles){document.getElementById('pctToggle').disabled=true;document.getElementById('pctToggle').parentElement.style.opacity='0.4';}else{document.getElementById('pctToggle').disabled=false;document.getElementById('pctToggle').parentElement.style.opacity='1';}clearInterval(progressTimer);document.getElementById('runBtn').disabled=false;}).catch(function(err){setAnalysisStatus('error','Failed: '+err.message);clearInterval(progressTimer);document.getElementById('runBtn').disabled=false;});}
+                if(data.has_percentiles){document.getElementById('dlPctPng').style.display='block';document.getElementById('dlPctPng').href='/api/results/'+data.analysis_id+'/percentiles.png';document.getElementById('dlProb').style.display='block';document.getElementById('dlProb').href='/api/results/'+data.analysis_id+'/probability.tif';if(data.contour_geojson){window._contourGeojson=data.contour_geojson;document.getElementById('dlContoursKml').style.display='block';}else{document.getElementById('dlContoursKml').style.display='none';}}else{document.getElementById('dlPctPng').style.display='none';document.getElementById('dlProb').style.display='none';document.getElementById('dlContoursKml').style.display='none';}var bounds=[[data.bounds.south,data.bounds.west],[data.bounds.north,data.bounds.east]];if(window.costOverlay){map.removeLayer(window.costOverlay);}if(window.pctOverlay){map.removeLayer(window.pctOverlay);}contourLayer.clearLayers();var aid=data.analysis_id;window.costOverlay=L.imageOverlay('/api/results/'+aid+'/cost_surface.png?t='+Date.now(),bounds,{opacity:0.6});window.pctOverlay=null;if(window.terrainOverlay){map.removeLayer(window.terrainOverlay);}window.terrainOverlay=L.imageOverlay('/api/results/'+aid+'/terrain.png?t='+Date.now(),bounds,{opacity:0.6});window.costOverlay.on('load',function(){if(data.has_percentiles&&data.contour_geojson){contourLayer.clearLayers();data.contour_geojson.features.forEach(function(f){var style={color:f.properties.color,weight:3,opacity:0.9,fillColor:f.properties.color,fillOpacity:0,dashArray:null};var layer=L.geoJSON(f,{style:style});contourLayer.addLayer(layer);var labelIcon=L.divIcon({className:'',html:'<div style="background:rgba(30,30,30,0.65);color:'+f.properties.color+';padding:4px 12px;border-radius:4px;font-size:13px;font-weight:700;font-family:sans-serif;white-space:nowrap;letter-spacing:0.5px;line-height:1;text-align:center;min-width:36px;">'+f.properties.percentile+'</div>',iconSize:[null,null],iconAnchor:[0,12],iconAnchor:[0,10]});var bounds=layer.getBounds();var labelLat=f.properties.label_lat||bounds.getCenter().lat;var labelLng=bounds.getEast();contourLayer.addLayer(L.marker([labelLat,labelLng],{icon:labelIcon,interactive:false}));});}});window.costOverlay.addTo(map);map.fitBounds(bounds);document.getElementById('layerToggles').classList.remove('hidden');document.getElementById('costToggle').checked=true;document.getElementById('pctToggle').checked=data.has_percentiles;if(!data.has_percentiles){document.getElementById('pctToggle').disabled=true;document.getElementById('pctToggle').parentElement.style.opacity='0.4';}else{document.getElementById('pctToggle').disabled=false;document.getElementById('pctToggle').parentElement.style.opacity='1';}clearInterval(progressTimer);document.getElementById('runBtn').disabled=false;}).catch(function(err){setAnalysisStatus('error','Failed: '+err.message);clearInterval(progressTimer);document.getElementById('runBtn').disabled=false;});}
     </script>
 </body>
 </html>
