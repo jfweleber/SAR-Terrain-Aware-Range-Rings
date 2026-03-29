@@ -6,7 +6,7 @@ A web-based spatial analysis tool that generates anisotropic probability surface
 
 **Live site:** [https://sar.weleber.net](https://sar.weleber.net)
 
-![TARR Example](tarr_example.png)
+![TARR Example](app/tarr_example.png)
 
 ---
 
