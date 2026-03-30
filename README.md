@@ -90,4 +90,4 @@ Graduate Research — Northwest Missouri State University
 
 ## License
 
-MIT License — see [LICENSE](LICENSE) for details.
+GNU AGPL3.0 License — see [LICENSE](LICENSE) for details.
