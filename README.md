@@ -106,7 +106,6 @@ Calibration multipliers are applied on the frontend before percentile distances 
 
 **Jamie F. Weleber**
 Coconino County Sheriff's Search & Rescue
-Graduate Research — Northwest Missouri State University
 
 ## License
 
