@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.download_cache/
+*.log
+.DS_Store
+Thumbs.db
+.env
+/app/wisar_*/
+/app/tmp/
+/tmp/
+*.tif
+*.png
+!app/tarr_example.png
+!app/static/weleber-fav.png
