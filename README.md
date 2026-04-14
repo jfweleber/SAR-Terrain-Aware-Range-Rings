@@ -5,7 +5,7 @@
 A web-based spatial analysis tool that generates anisotropic probability surfaces for SAR operations. Instead of drawing simple Euclidean distance rings around an Initial Planning Point (IPP), TARRs trace contours of equal travel cost across real terrain — stretching along trails and valleys where a person can move easily, and compressing against steep slopes, dense forest, and water barriers.
 
 **Live site:** [https://sar.weleber.net](https://sar.weleber.net)
-![TARR Example — San Francisco Peaks](tarr_example.png)
+![TARR Example — San Francisco Peaks](app/tarr_example.png)
 ---
 
 ## What this tool does
