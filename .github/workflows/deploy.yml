@@ -1,0 +1,70 @@
+name: Deploy to production
+
+# Push to main -> code lands on the Linode -> service restarts -> health check.
+# If the health check fails the run goes red, so a broken deploy is visible
+# rather than silent.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:        # lets you re-run a deploy by hand from the Actions tab
+
+# Never let two deploys race each other onto the same server.
+concurrency:
+  group: deploy-WiSAR-Terrain-Aware-Range-Rings
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure SSH
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      # --delete keeps the server identical to the repo, so files removed in git
+      # also disappear in production. The excludes are what stop that from
+      # destroying data that exists only on the server.
+      #
+      # NOT using -a: it implies -o -g -p, and the deploy user does not own these
+      # files (jamie does) so it cannot chgrp or chmod them. That is the privilege
+      # separation working as designed, so we sync contents and times only.
+      - name: Sync files to server
+        run: |
+          rsync -rltzD --delete --no-perms --no-owner --no-group --omit-dir-times \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='venv/' \
+            --exclude='.venv/' \
+            --exclude='__pycache__/' \
+            --exclude='*.pyc' \
+            --exclude='uploads/' \
+            --exclude='*.db' \
+            --exclude='*.db-journal' \
+            --exclude='*.env' \
+            --exclude='cache/' \
+            --exclude='*.log' \
+            --exclude='*.sock' \
+            --exclude='*.ctl' \
+            -e "ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes -o StrictHostKeyChecking=yes" \
+            app/ deploy@${{ secrets.DEPLOY_HOST }}:/var/www/sar.weleber.net/app/
+
+      - name: Restart service
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes \
+            deploy@${{ secrets.DEPLOY_HOST }} \
+            'sudo systemctl restart wisar.service && sudo systemctl is-active wisar.service'
+      - name: Health check
+        run: |
+          for i in 1 2 3 4 5 6; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 https://sar.weleber.net/ || echo 000)
+            echo "attempt $i: HTTP $code"
+            if [ "$code" = "200" ]; then echo "deploy verified"; exit 0; fi
+            sleep 5
+          done
+          echo "health check FAILED - site is not returning 200"
+          exit 1
