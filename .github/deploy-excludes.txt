@@ -1,0 +1,38 @@
+# Files rsync must NEVER push or delete during a deploy.
+#
+# This matters because the deploy uses --delete to keep production identical
+# to the repo. Anything that lives only on the server and is not listed here
+# WILL BE DELETED on the next deploy. When you add a file that production
+# generates at runtime, add it here first.
+
+# Repository plumbing
+.git/
+.github/
+
+# Secrets: real values live on the server, injected by systemd
+*.env
+
+# Irreplaceable data: user uploads and databases
+uploads/
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Database backups: note *.db does NOT match challenge.db.20260823.bak
+*.bak
+*.backup
+
+# Runtime state: sockets, logs, caches the app writes itself
+*.sock
+*.ctl
+*.log
+cache/
+.download_cache/
+
+# Rebuildable dependencies
+venv/
+.venv/
+node_modules/
+__pycache__/
+*.pyc
