@@ -16,6 +16,11 @@
 uploads/
 *.db
 *.db-journal
+# SQLite WAL mode writes these two beside the database. They are NOT
+# matched by *.db, and a deploy landing while a checkpoint is pending
+# would delete un-checkpointed writes.
+*.db-wal
+*.db-shm
 *.sqlite
 *.sqlite3
 
@@ -36,3 +41,7 @@ venv/
 node_modules/
 __pycache__/
 *.pyc
+
+# Repository documentation. Nothing in production reads it, and on a static
+# site it would be publicly fetchable at /CLAUDE.md.
+CLAUDE.md

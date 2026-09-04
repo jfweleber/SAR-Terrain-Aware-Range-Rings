@@ -1,0 +1,45 @@
+# ===============================================================================
+# WiSAR Terrain-Aware Range Rings — Python dependencies
+#
+# Captured from the production venv on sar.weleber.net with `pip freeze`, so
+# these are the versions the tool is known to run on rather than a wish list.
+#
+# Until this file existed, the environment lived ONLY inside the venv on the
+# server: a rebuild would have produced no virtualenv and the service would not
+# have started. weleber-server-config/provision.sh phase 50 looks for exactly
+# this path (app/requirements.txt).
+#
+# System packages this stack needs, installed by provision.sh phase 10 and NOT
+# installable with pip: gdal-bin, libgdal-dev, python3-gdal, libspatialindex-dev.
+# osmium-tool is required by tools/build_osm_cache.py, not by the web app.
+#
+# Versions are pinned exactly. The geospatial stack is tightly coupled --
+# rasterio, geopandas, pyogrio and fiona all bind the same GDAL, and a partial
+# upgrade produces import-time failures rather than a clean error. Upgrade the
+# set together, on a rebuilt venv, and run a real analysis before deploying.
+# ===============================================================================
+
+Flask==3.1.3
+gunicorn==25.1.0
+requests==2.32.5
+
+# Geospatial core. rasterio reads/writes the DEM and cost rasters; shapely and
+# geopandas do the vector work; fiona and pyogrio are the OGR bindings.
+rasterio==1.5.0
+geopandas==1.1.3
+shapely==2.1.2
+fiona==1.10.1
+pyogrio==0.12.1
+
+# Numerics. scipy supplies convolve2d, binary_dilation and uniform_filter for
+# the cost surface and the Jacobs attractor masks.
+numpy==2.4.3
+scipy==1.17.1
+
+# Raster-to-PNG rendering for the overlay endpoints.
+pillow==12.1.1
+
+# Required only by tools/build_osm_cache.py, which streams filtered PBFs as
+# Arrow record batches. The weekly cache build OOM'd on California before it
+# was rewritten to batch, so this is load-bearing for that script.
+pyarrow==24.0.0
