@@ -5,7 +5,7 @@
 #               accounting for slope (Tobler), land cover friction, cross-slope
 #               penalty, and 3D surface distance.
 # Author:       Jamie F. Weleber
-# Created:      March 2026 - v1.14 (no changes)
+# Created:      March 2026
 # ===============================================================================
 
 import numpy as np

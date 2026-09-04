@@ -4,7 +4,7 @@
 #               corridors, and hydrology data. Converts raw impedance values to
 #               calibrated friction multipliers based on off-trail speed literature.
 # Author:       Jamie F. Weleber
-# Created:      March 2026 - v1.14 (no change)
+# Created:      March 2026
 # ===============================================================================
 
 import numpy as np

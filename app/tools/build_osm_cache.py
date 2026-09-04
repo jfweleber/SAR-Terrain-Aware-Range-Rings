@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # ===============================================================================
 # Script:       tools/build_osm_cache.py
 # Purpose:      Build or refresh the local OSM cache used by the WiSAR pipeline
@@ -67,6 +68,12 @@ GEOFABRIK_STATES = {
     'utah':       'https://download.geofabrik.de/north-america/us/utah-latest.osm.pbf',
     'nevada':     'https://download.geofabrik.de/north-america/us/nevada-latest.osm.pbf',
     'new-mexico': 'https://download.geofabrik.de/north-america/us/new-mexico-latest.osm.pbf',
+    'washington': 'https://download.geofabrik.de/north-america/us/washington-latest.osm.pbf',
+    'oregon':     'https://download.geofabrik.de/north-america/us/oregon-latest.osm.pbf',
+    'idaho':      'https://download.geofabrik.de/north-america/us/idaho-latest.osm.pbf',
+    'montana':    'https://download.geofabrik.de/north-america/us/montana-latest.osm.pbf',
+    'wyoming':    'https://download.geofabrik.de/north-america/us/wyoming-latest.osm.pbf',
+    'colorado':   'https://download.geofabrik.de/north-america/us/colorado-latest.osm.pbf',
 }
 
 # Highway tag values kept as "trails" (foot-traffic corridors SAR subjects follow).
@@ -85,7 +92,7 @@ POWER_TAGS = {'line', 'minor_line'}
 
 # Minimum free disk space to start (GB) — prevents a cron job from filling
 # the root filesystem and breaking the running Flask process.
-MIN_FREE_DISK_GB = 10
+MIN_FREE_DISK_GB = 18
 
 # osmium-tool command name — resolved via PATH. Exposed as a constant so
 # Debian-like systems that ship it as `osmium-tool` can swap in one place.
@@ -114,9 +121,11 @@ def setup_logging(verbose):
 def check_disk_space(required_gb):
     """Abort early if disk is too full to safely build the cache.
 
-    Worst-case full build: ~2 GB of PBF downloads + ~0.5 GB of filtered PBFs
-    + ~1 GB of GeoPackage output + overhead during merge. MIN_FREE_DISK_GB
-    defaults to 10 GB — generous margin for safety.
+    Worst-case full build (11 states): the new osm_cache.gpkg.tmp is built
+    alongside the still-live osm_cache.gpkg, plus ~4 GB of raw and filtered
+    PBFs held until end-of-run cleanup. Peak is roughly 16-17 GB. The 18 GB
+    floor keeps this preflight an honest guard rather than a number the real
+    build can quietly exceed.
     """
     try:
         stat = shutil.disk_usage(CACHE_DIR)

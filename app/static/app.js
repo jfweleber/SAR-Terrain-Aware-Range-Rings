@@ -3,7 +3,7 @@ var LPB_DATA={"Abduction": [{"eco": null, "terrain": null, "distances": [0.32, 2
         var CALIBRATION_DEFAULT={m25:1.05,m50:1.35,m75:1.80};
         let currentMode=null,ippMarker=null,segmentLayer=L.layerGroup();var contourLayer=L.layerGroup();
         const segmentColors=['#ef4444','#3b82f6','#22c55e','#f59e0b','#a855f7','#ec4899','#06b6d4','#84cc16'];
-        const map=L.map('map',{zoomControl:false}).setView([35.2,-111.65],10);
+        const map=L.map('map',{zoomControl:false}).setView([39.5,-98.5],5);
         L.control.zoom({position:'topright'}).addTo(map);
         segmentLayer.addTo(map);contourLayer.addTo(map);
         var basemaps={
@@ -216,7 +216,7 @@ var LPB_DATA={"Abduction": [{"eco": null, "terrain": null, "distances": [0.32, 2
             if(ippMarker)map.removeLayer(ippMarker);
             ippMarker=null;
             segmentLayer.clearLayers();
-            map.setView([35.2,-111.65],10);
+            map.setView([39.5,-98.5],5);
             document.getElementById('layerToggles').classList.add('hidden');
             document.getElementById('downloadSection')&&(document.getElementById('downloadSection').classList.add('hidden'));
             document.getElementById('caltopoExportSection')&&(document.getElementById('caltopoExportSection').style.display='none');

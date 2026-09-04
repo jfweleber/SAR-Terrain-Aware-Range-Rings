@@ -1,0 +1,15 @@
+# Force LF line endings in the repository for everything text.
+#
+# Why: this code is edited on Windows but runs on Ubuntu. Without this, Git
+# would store CRLF, and a CRLF in a systemd unit, an nginx config, or a shell
+# script is a syntax error on Linux -- the classic "works locally, breaks on
+# deploy" bug. eol=lf normalises on commit AND checkout.
+* text=auto eol=lf
+
+*.ico  binary
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.webp binary
+*.db   binary
+*.mpkx binary

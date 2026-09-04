@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WiSAR Decision Support Tool - Metadata</title>
+<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>body{font-family:'Source Sans 3',sans-serif;max-width:900px;margin:0 auto;padding:40px 24px;background:#fdfdfd;color:#333;line-height:1.6;}a{color:#002e8c;}</style>
+</head>
+<body>
+<h1 style="color:#002e8c;border-bottom:3px solid #002e8c;padding-bottom:10px;font-weight:700;font-size:28px;margin-bottom:6px;">WiSAR Decision Support Tool</h1>
+<p style="font-size:15px;color:#666;margin-top:0;margin-bottom:24px;">Coconino County Sheriff's Search &amp; Rescue</p>
+<h2 style="color:#002e8c;border-bottom:2px solid #ffca00;padding-bottom:5px;margin-top:30px;font-size:18px;">Description</h2>
+<p style="font-size:14px;">The WiSAR (Wilderness Search and Rescue) Decision Support Tool is a web-based geospatial application designed to assist SAR coordinators with search area prioritization and probability modeling for lost person incidents. The tool generates terrain-aware travel cost surfaces and probability contours from an Initial Planning Point (IPP) using anisotropic cost-distance analysis.</p>
+<p style="font-size:14px;">The tool supports two operational workflows: (1) IPP-only mode, which generates a probability surface and travel cost analysis from a single point with a user-defined search radius, and (2) CalTopo import mode, which imports search segments and IPP data from CalTopo for full segment overlay and Probability of Area (POA) ranking.</p>
+<h2 style="color:#002e8c;border-bottom:2px solid #ffca00;padding-bottom:5px;margin-top:30px;font-size:18px;">Purpose</h2>
+<p style="font-size:14px;">This tool was developed as a proof-of-concept to bridge the gap between spatial probability modeling and operational SAR workflows. It is intended to provide SAR coordinators with terrain-aware probability surfaces that replace traditional Euclidean range rings with contours shaped by actual terrain conditions, improving search area prioritization during active incidents.</p>
+<h2 style="color:#002e8c;border-bottom:2px solid #ffca00;padding-bottom:5px;margin-top:30px;font-size:18px;">Methodology</h2>
+<h3 style="color:#444;margin-top:20px;font-size:16px;">Cost Surface Generation</h3>
+<p style="font-size:14px;">The travel cost surface is constructed by combining landcover friction values with slope-derived travel cost. Landcover impedance values are sourced from the IGT4SAR framework (Doherty et al. 2013) as documented in Danser (2018). Trails and roads from OpenStreetMap are burned into the friction surface at impedance value 1 (no impedance). Waterways are assigned graduated impedance values based on feature type.</p>
+<h3 style="color:#444;margin-top:20px;font-size:16px;">Anisotropic Cost-Distance Analysis</h3>
+<p style="font-size:14px;">Cost-distance from the IPP is computed using an anisotropic implementation of Tobler's Hiking Function (Tobler, 1993). The algorithm computes directional slope between each pair of neighboring cells during traversal, applying the asymmetric speed function where slight downhill travel (~-2.86 degrees) achieves maximum speed of 6 km/h. The implementation uses true surface distance (3D hypotenuse) rather than horizontal distance, and includes a cross-slope traversal penalty.</p>
+<h3 style="color:#444;margin-top:20px;font-size:16px;">Probability Surface</h3>
+<p style="font-size:14px;">User-provided percentile find distances (25th, 50th, 75th) are applied as contour thresholds on the cost-distance surface. These percentiles, typically sourced from Koester's Lost Person Behavior (ISRID data), define terrain-aware probability zones that replace traditional Euclidean range rings. The contours stretch along corridors of easy travel and compress against steep or densely vegetated terrain.</p>
+<h2 style="color:#002e8c;border-bottom:2px solid #ffca00;padding-bottom:5px;margin-top:30px;font-size:18px;">Data Sources</h2>
+<table style="width:100%;border-collapse:collapse;margin-top:15px;font-size:14px;">
+<tr><th style="background-color:#002e8c;color:white;padding:10px;text-align:left;">Dataset</th><th style="background-color:#002e8c;color:white;padding:10px;text-align:left;">Source</th><th style="background-color:#002e8c;color:white;padding:10px;text-align:left;">Resolution</th><th style="background-color:#002e8c;color:white;padding:10px;text-align:left;">Usage</th></tr>
+<tr><td style="padding:8px;border-bottom:1px solid #ddd;">Digital Elevation Model</td><td style="padding:8px;border-bottom:1px solid #ddd;">USGS 3DEP 1/3 Arc-Second</td><td style="padding:8px;border-bottom:1px solid #ddd;">~30m (resampled)</td><td style="padding:8px;border-bottom:1px solid #ddd;">Slope derivation, surface distance, anisotropic cost</td></tr>
+<tr style="background-color:#f9f9f9;"><td style="padding:8px;border-bottom:1px solid #ddd;">Land Cover</td><td style="padding:8px;border-bottom:1px solid #ddd;">NLCD 2021 (MRLC/USGS)</td><td style="padding:8px;border-bottom:1px solid #ddd;">30m (native)</td><td style="padding:8px;border-bottom:1px solid #ddd;">Landcover friction / impedance classification</td></tr>
+<tr><td style="padding:8px;border-bottom:1px solid #ddd;">Trails &amp; Roads</td><td style="padding:8px;border-bottom:1px solid #ddd;">OpenStreetMap (Overpass API)</td><td style="padding:8px;border-bottom:1px solid #ddd;">Vector</td><td style="padding:8px;border-bottom:1px solid #ddd;">Trail/road burn-in at impedance 1</td></tr>
+<tr style="background-color:#f9f9f9;"><td style="padding:8px;border-bottom:1px solid #ddd;">Waterways</td><td style="padding:8px;border-bottom:1px solid #ddd;">OpenStreetMap (Overpass API)</td><td style="padding:8px;border-bottom:1px solid #ddd;">Vector</td><td style="padding:8px;border-bottom:1px solid #ddd;">Stream/river impedance overlay</td></tr>
+<tr><td style="padding:8px;border-bottom:1px solid #ddd;">Search Segments</td><td style="padding:8px;border-bottom:1px solid #ddd;">CalTopo API (user-provided)</td><td style="padding:8px;border-bottom:1px solid #ddd;">Vector</td><td style="padding:8px;border-bottom:1px solid #ddd;">Segment import for POA ranking</td></tr>
+</table>
+<h2 style="color:#002e8c;border-bottom:2px solid #ffca00;padding-bottom:5px;margin-top:30px;font-size:18px;">NLCD Impedance Classification</h2>
+<p style="font-size:14px;">Landcover impedance values follow the IGT4SAR framework as documented by Doherty et al. (2013) and Danser (2018, Table 5). Values range from 1 (no impedance) to 99 (complete barrier).</p>
+<div style="background-color:#fff8e1;border-left:4px solid #ffca00;padding:15px;margin:15px 0;font-size:14px;"><strong>Note:</strong> The friction normalization applied in this tool differs from the raw IGT4SAR implementation. Values are scaled as dimensionless multipliers where 1.0 represents flat, open-ground travel pace.</div>
+<table style="width:100%;border-collapse:collapse;margin-top:15px;font-size:13px;">
+<tr><th style="background-color:#002e8c;color:white;padding:8px;text-align:left;">NLCD Code</th><th style="background-color:#002e8c;color:white;padding:8px;text-align:left;">Description</th><th style="background-color:#002e8c;color:white;padding:8px;text-align:center;">Impedance</th></tr>
+<tr><td style="padding:6px 8px;border-bottom:1px solid #ddd;">11</td><td style="padding:6px 8px;border-bottom:1px solid #ddd;">Open Water</td><td style="padding:6px 8px;border-bottom:1px solid #ddd;text-align:center;">99</td></tr>
+<tr style="background-color:#f9f9f9;"><td style="padding:6px 8px;border-bottom:1px solid #ddd;">12</td><td style="padding:6px 8px;border-bottom:1px solid #ddd;">Perennial Ice/Snow</td><td style="padding:6px 8px;border-bottom:1px solid #ddd;text-align:center;">85</td></tr>
+<tr><td style="padding:6px 8px;border-bottom:1px solid #ddd;">21</td><td style="padding:6px 8px;border-bottom:1px solid #ddd;">Developed, Open Space</td><td style="padding:6px 8px;border-bottom:1px solid #ddd;text-align:center;">5</td></tr>
+<tr style="background-color:#f9f9f9;"><td style="padding:6px 8px;border-bottom:1px solid #ddd;">22</td><td style="padding:6px 8px;border-bottom:1px solid #ddd;">Developed, Low Intensity</td><td style="padding:6px 8px;border-bottom:1px solid #ddd;text-align:center;">10</td></tr>
+<tr><td style="padding:6px 8px;border-bottom:1px solid #ddd;">23</td><td style="padding:6px 8px;border-bottom:1px solid #ddd;">Developed, Medium Intensity</td><td style="padding:6px 8px;border-bottom:1px solid #ddd;text-align:center;">15</td></tr>
+<tr style="background-color:#f9f9f9;"><td style="padding:6px 8px;border-bottom:1px solid #ddd;">24</td><td style="padding:6px 8px;border-bottom:1px solid #ddd;">Developed, High Intensity</td><td style="padding:6px 8px;border-bottom:1px solid #ddd;text-align:center;">20</td></tr>
+<tr><td style="padding:6px 8px;border-bottom:1px solid #ddd;">31</td><td style="padding:6px 8px;border-bottom:1px solid #ddd;">Barren Land</td><td style="padding:6px 8px;border-bottom:1px solid #ddd;text-align:center;">30</td></tr>
+<tr style="background-color:#f9f9f9;"><td style="padding:6px 8px;border-bottom:1px solid #ddd;">41</td><td style="padding:6px 8px;border-bottom:1px solid #ddd;">Deciduous Forest</td><td style="padding:6px 8px;border-bottom:1px solid #ddd;text-align:center;">45</td></tr>
+<tr><td style="padding:6px 8px;border-bottom:1px solid #ddd;">42</td><td style="padding:6px 8px;border-bottom:1px solid #ddd;">Evergreen Forest</td><td style="padding:6px 8px;border-bottom:1px solid #ddd;text-align:center;">50</td></tr>
+<tr style="background-color:#f9f9f9;"><td style="padding:6px 8px;border-bottom:1px solid #ddd;">43</td><td style="padding:6px 8px;border-bottom:1px solid #ddd;">Mixed Forest</td><td style="padding:6px 8px;border-bottom:1px solid #ddd;text-align:center;">35</td></tr>
+<tr><td style="padding:6px 8px;border-bottom:1px solid #ddd;">52</td><td style="padding:6px 8px;border-bottom:1px solid #ddd;">Shrub/Scrub</td><td style="padding:6px 8px;border-bottom:1px solid #ddd;text-align:center;">45</td></tr>
+<tr style="background-color:#f9f9f9;"><td style="padding:6px 8px;border-bottom:1px solid #ddd;">71</td><td style="padding:6px 8px;border-bottom:1px solid #ddd;">Grassland/Herbaceous</td><td style="padding:6px 8px;border-bottom:1px solid #ddd;text-align:center;">20</td></tr>
+<tr><td style="padding:6px 8px;border-bottom:1px solid #ddd;">81</td><td style="padding:6px 8px;border-bottom:1px solid #ddd;">Pasture/Hay</td><td style="padding:6px 8px;border-bottom:1px solid #ddd;text-align:center;">25</td></tr>
+<tr style="background-color:#f9f9f9;"><td style="padding:6px 8px;border-bottom:1px solid #ddd;">82</td><td style="padding:6px 8px;border-bottom:1px solid #ddd;">Cultivated Crops</td><td style="padding:6px 8px;border-bottom:1px solid #ddd;text-align:center;">30</td></tr>
+<tr><td style="padding:6px 8px;border-bottom:1px solid #ddd;">90</td><td style="padding:6px 8px;border-bottom:1px solid #ddd;">Woody Wetlands</td><td style="padding:6px 8px;border-bottom:1px solid #ddd;text-align:center;">80</td></tr>
+<tr style="background-color:#f9f9f9;"><td style="padding:6px 8px;border-bottom:1px solid #ddd;">95</td><td style="padding:6px 8px;border-bottom:1px solid #ddd;">Emergent Herbaceous Wetlands</td><td style="padding:6px 8px;border-bottom:1px solid #ddd;text-align:center;">80</td></tr>
+</table>
+<h2 style="color:#002e8c;border-bottom:2px solid #ffca00;padding-bottom:5px;margin-top:30px;font-size:18px;">Map Layers</h2>
+<table style="width:100%;border-collapse:collapse;margin-top:15px;font-size:14px;">
+<tr><th style="background-color:#002e8c;color:white;padding:10px;text-align:left;">Layer</th><th style="background-color:#002e8c;color:white;padding:10px;text-align:left;">Description</th><th style="background-color:#002e8c;color:white;padding:10px;text-align:center;">Default</th></tr>
+<tr><td style="padding:8px;border-bottom:1px solid #ddd;">Travel Cost Surface</td><td style="padding:8px;border-bottom:1px solid #ddd;">Accumulated anisotropic cost-distance from the IPP. Continuous gradient from green (low cost) to red (high cost).</td><td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">On</td></tr>
+<tr style="background-color:#f9f9f9;"><td style="padding:8px;border-bottom:1px solid #ddd;">Percentile Contours</td><td style="padding:8px;border-bottom:1px solid #ddd;">Terrain-aware range rings at 25th, 50th, and 75th percentile find distances.</td><td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">On</td></tr>
+<tr><td style="padding:8px;border-bottom:1px solid #ddd;">Terrain Difficulty</td><td style="padding:8px;border-bottom:1px solid #ddd;">Local terrain traversal difficulty independent of distance from IPP.</td><td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">Off</td></tr>
+</table>
+<h2 style="color:#002e8c;border-bottom:2px solid #ffca00;padding-bottom:5px;margin-top:30px;font-size:18px;">Technical Specifications</h2>
+<table style="width:100%;border-collapse:collapse;margin-top:15px;font-size:14px;">
+<tr><th style="background-color:#002e8c;color:white;padding:10px;text-align:left;">Parameter</th><th style="background-color:#002e8c;color:white;padding:10px;text-align:left;">Value</th></tr>
+<tr><td style="padding:8px;border-bottom:1px solid #ddd;">Analysis Resolution</td><td style="padding:8px;border-bottom:1px solid #ddd;">30 meters (matched to NLCD)</td></tr>
+<tr style="background-color:#f9f9f9;"><td style="padding:8px;border-bottom:1px solid #ddd;">Coordinate Reference System</td><td style="padding:8px;border-bottom:1px solid #ddd;">EPSG:4326 (WGS 84)</td></tr>
+<tr><td style="padding:8px;border-bottom:1px solid #ddd;">Cost-Distance Algorithm</td><td style="padding:8px;border-bottom:1px solid #ddd;">Dijkstra's shortest path, 8-connected, anisotropic</td></tr>
+<tr style="background-color:#f9f9f9;"><td style="padding:8px;border-bottom:1px solid #ddd;">Slope Cost Function</td><td style="padding:8px;border-bottom:1px solid #ddd;">Tobler's Hiking Function (1993), directional</td></tr>
+<tr><td style="padding:8px;border-bottom:1px solid #ddd;">Distance Calculation</td><td style="padding:8px;border-bottom:1px solid #ddd;">3D surface distance</td></tr>
+<tr style="background-color:#f9f9f9;"><td style="padding:8px;border-bottom:1px solid #ddd;">Cross-Slope Factor</td><td style="padding:8px;border-bottom:1px solid #ddd;">Up to 30% additional penalty</td></tr>
+<tr><td style="padding:8px;border-bottom:1px solid #ddd;">Max Search Radius</td><td style="padding:8px;border-bottom:1px solid #ddd;">25,000m (IPP-only mode)</td></tr>
+<tr style="background-color:#f9f9f9;"><td style="padding:8px;border-bottom:1px solid #ddd;">Max Segment Extent</td><td style="padding:8px;border-bottom:1px solid #ddd;">50 km per side (CalTopo mode)</td></tr>
+<tr><td style="padding:8px;border-bottom:1px solid #ddd;">Server</td><td style="padding:8px;border-bottom:1px solid #ddd;">Ubuntu 24.04, Python 3.12, Flask, Gunicorn, Nginx</td></tr>
+</table>
+<h2 style="color:#002e8c;border-bottom:2px solid #ffca00;padding-bottom:5px;margin-top:30px;font-size:18px;">Known Limitations</h2>
+<div style="background-color:#fff8e1;border-left:4px solid #ffca00;padding:15px;margin:15px 0;font-size:14px;">
+<ul style="margin:0;padding-left:20px;">
+<li style="margin-bottom:8px;">Friction normalization differs from raw IGT4SAR implementation.</li>
+<li style="margin-bottom:8px;">Cross-slope traversal is approximated rather than using aspect-relative horizontal factors.</li>
+<li style="margin-bottom:8px;">Stream impedance uses simplified binary approach rather than Strahler stream order.</li>
+<li style="margin-bottom:8px;">Trail data from OpenStreetMap may have incomplete coverage.</li>
+<li style="margin-bottom:8px;">NLCD acquired via WMS may have resampling artifacts.</li>
+<li style="margin-bottom:0;">Analysis resolution capped at 30m to manage server memory (2 GB).</li>
+</ul>
+</div>
+<h2 style="color:#002e8c;border-bottom:2px solid #ffca00;padding-bottom:5px;margin-top:30px;font-size:18px;">References</h2>
+<p style="font-size:13px;margin-bottom:8px;">Danser, R.A. (2018). <em>Applying Least Cost Path Analysis to Search and Rescue Data: A Case Study in Yosemite National Park.</em> USC Thesis.</p>
+<p style="font-size:13px;margin-bottom:8px;">Doherty, P.J., Guo, Q., Doke, J., &amp; Ferguson, D. (2014). An analysis of probability of area techniques for missing persons in Yosemite National Park. <em>Applied Geography, 47,</em> 99-110.</p>
+<p style="font-size:13px;margin-bottom:8px;">Ferguson, D. (2013). <em>Integrated Geospatial Tools for Search and Rescue (IGT4SAR).</em> GitHub.</p>
+<p style="font-size:13px;margin-bottom:8px;">Koester, R.J. (2008). <em>Lost Person Behavior.</em> dbS Productions.</p>
+<p style="font-size:13px;margin-bottom:8px;">Sava, E., Twardy, C., Koester, R., &amp; Sonwalkar, M. (2016). Evaluating lost person behavior models. <em>Transactions in GIS, 20</em>(1), 38-53.</p>
+<p style="font-size:13px;margin-bottom:8px;">Tobler, W. (1993). Three presentations on geographical analysis and modeling. <em>Technical Report 93-1,</em> NCGIA.</p>
+<h2 style="color:#002e8c;border-bottom:2px solid #ffca00;padding-bottom:5px;margin-top:30px;font-size:18px;">Contact</h2>
+<p style="font-size:14px;"><strong>Developer:</strong> Jamie Weleber<br><strong>Organization:</strong> Coconino County Sheriff's Search &amp; Rescue<br><strong>URL:</strong> <a href="https://sar.weleber.net">https://sar.weleber.net</a></p>
+<p style="margin-top:30px;font-size:13px;color:#888;text-align:center;"><strong>Metadata Date:</strong> March 23, 2026<br><strong>Version:</strong> 1.0 (Proof of Concept)<br><strong>Created by:</strong> Jamie Weleber</p>
+</body>
+</html>
