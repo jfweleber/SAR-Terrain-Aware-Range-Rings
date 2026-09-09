@@ -103,32 +103,49 @@ def cache_age_days():
 def cache_covers_bbox(bbox):
     """Check whether the cache's geographic coverage includes the requested bbox.
 
-    The cache only contains states we've chosen to pre-download (AZ, CA, UT,
-    NV, NM as of v1.11). If a SAR mission is run in, say, Colorado or Oregon,
-    the cache can't help — and we must tell the user that rather than silently
-    returning empty GeoDataFrames that look identical to "OSM just had no data
-    for this area."
+    The cache only contains the states tools/build_osm_cache.py was told to
+    download (all 50 + DC since September 2026; five Western states in
+    v1.11). If a SAR mission is run somewhere the cache does not reach, the
+    cache can't help — and we must tell the user that rather than silently
+    returning empty GeoDataFrames that look identical to "OSM just had no
+    data for this area."
 
-    We compare against the cache's recorded bbox envelope. This is a loose
-    check — it treats the cache extent as a single rectangle, so a bbox that
-    falls inside the envelope but outside any covered state (e.g., in
-    eastern Oregon if we only cache CA) would still pass. That's acceptable
-    because the consequence is "returned empty results from the cache" which
-    is indistinguishable from "no features in that area" and degrades
-    gracefully.
+    When the metadata carries per-state bboxes (builds from September 2026
+    on) the request passes if it intersects any state's bbox. A state bbox
+    is still a rectangle, so a request in a corner of a neighbouring state
+    that the build skipped could pass and get empty results; that's
+    acceptable because "empty from the cache" is indistinguishable from "no
+    features in that area" and degrades gracefully. Alaska's bbox spans the
+    antimeridian and therefore matches most of the northern hemisphere
+    between 51°N and 72°N — same graceful failure.
+
+    Older metadata has only the union envelope; fall back to requiring the
+    request to sit fully inside it.
 
     Args:
         bbox: (west, south, east, north) in decimal degrees
 
     Returns:
-        bool: True if the bbox is fully inside the cache's coverage envelope.
+        bool: True if the cache can be expected to hold data for the bbox.
     """
     meta = read_cache_metadata()
+    west, south, east, north = bbox
+
+    state_bboxes = meta.get('state_bboxes') or {}
+    if state_bboxes:
+        for sb in state_bboxes.values():
+            if not sb or len(sb) != 4:
+                continue
+            s_west, s_south, s_east, s_north = sb
+            if (west <= s_east and east >= s_west and
+                    south <= s_north and north >= s_south):
+                return True
+        return False
+
     cache_bbox = meta.get('bbox')
     if not cache_bbox or len(cache_bbox) != 4:
         return False
     c_west, c_south, c_east, c_north = cache_bbox
-    west, south, east, north = bbox
     return (west >= c_west and east <= c_east and
             south >= c_south and north <= c_north)
 
@@ -147,7 +164,7 @@ def load_osm_from_cache(bbox):
 
     Each GeoPackage layer has an RTree spatial index built during cache
     construction, so the bbox clip is near-instant even though the source
-    layer may contain hundreds of thousands of features spanning five
+    layer may contain millions of features spanning all fifty
     states. GeoPandas uses the index automatically via the `bbox` parameter
     of `read_file`.
 

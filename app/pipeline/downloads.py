@@ -194,7 +194,7 @@ def download_osm_features(bbox):
     Fallback behavior (v1.11+): If all public Overpass endpoints fail, we
     fall through to a local cache built weekly from Geofabrik state extracts
     (see pipeline/osm_cache.py and tools/build_osm_cache.py). The cache
-    covers AZ, CA, UT, NV, NM. If the analysis bbox falls outside cache
+    covers all 50 states and DC. If the analysis bbox falls outside cache
     coverage or the cache is missing, we return empty GeoDataFrames and
     attach a warning that the frontend surfaces to the user — the analysis
     still completes, it just won't include trail-corridor friction.
@@ -277,7 +277,13 @@ def download_osm_features(bbox):
 
         if not osm_cache.cache_covers_bbox(bbox):
             meta = osm_cache.read_cache_metadata()
-            states = ', '.join(meta.get('states', [])) or 'unknown'
+            state_list = meta.get('states', [])
+            # With the whole country cached the list is 51 slugs long;
+            # a count reads better in the warning banner than the roll call.
+            if len(state_list) > 12:
+                states = f'{len(state_list)} US states'
+            else:
+                states = ', '.join(state_list) or 'unknown'
             print(f"  WARNING: Analysis bbox outside cache coverage ({states}). "
                   f"Proceeding without trail data.")
             return {

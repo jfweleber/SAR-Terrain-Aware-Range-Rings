@@ -24,6 +24,10 @@
 #   Manual (verbose):        python3 tools/build_osm_cache.py --verbose
 #   Manual (keep PBFs):      python3 tools/build_osm_cache.py --keep-pbfs
 #   Manual (one state):      python3 tools/build_osm_cache.py --states arizona
+#
+#   A full run covers all 50 states + DC (~11 GB of downloads). On the
+#   Linode (4 vCPU, 8 GB) the 11-state Western build took ~20 minutes;
+#   expect the whole-country build to take on the order of an hour.
 #   Cron (weekly Sun 3AM MST): 0 10 * * 0 /usr/bin/python3 /var/www/sar.weleber.net/tools/build_osm_cache.py >> /var/www/sar.weleber.net/cache/osm/build.log 2>&1
 #
 # Author:       Jamie F. Weleber
@@ -59,21 +63,35 @@ CACHE_METADATA = os.path.join(CACHE_DIR, 'osm_cache_metadata.json')
 CACHE_METADATA_TMP = os.path.join(CACHE_DIR, 'osm_cache_metadata.json.tmp')
 PBF_WORK_DIR = os.path.join(CACHE_DIR, 'pbf')
 
-# Geofabrik state extracts covered by the cache. Keyed by a short slug used
-# for local filenames. Expand this list by adding more states; each adds
-# one more PBF download but the filter/merge step scales linearly.
+# Geofabrik state extracts covered by the cache: all 50 states plus DC.
+# Keyed by the Geofabrik slug, which is also used for local filenames.
+# Puerto Rico and the US Virgin Islands are available from Geofabrik but
+# deliberately left out — the friction model's DEM and land-cover sources
+# (3DEP, MRLC) do not cover them, so trail data alone would not help.
+#
+# Order matters only for the build log: the Western states the tool is
+# most used in come first so a partial build (one state failed) still
+# covers them. Every slug was verified to resolve on Geofabrik on
+# 2026-09-09; raw PBFs total ~11 GB, dominated by California (1.3 GB),
+# Texas (0.7 GB) and Florida (0.6 GB).
+GEOFABRIK_BASE_URL = 'https://download.geofabrik.de/north-america/us/'
+GEOFABRIK_STATE_SLUGS = [
+    # Western states (original v1.11 coverage)
+    'arizona', 'california', 'utah', 'nevada', 'new-mexico', 'washington',
+    'oregon', 'idaho', 'montana', 'wyoming', 'colorado',
+    # Rest of the country
+    'alabama', 'alaska', 'arkansas', 'connecticut', 'delaware',
+    'district-of-columbia', 'florida', 'georgia', 'hawaii', 'illinois',
+    'indiana', 'iowa', 'kansas', 'kentucky', 'louisiana', 'maine',
+    'maryland', 'massachusetts', 'michigan', 'minnesota', 'mississippi',
+    'missouri', 'nebraska', 'new-hampshire', 'new-jersey', 'new-york',
+    'north-carolina', 'north-dakota', 'ohio', 'oklahoma', 'pennsylvania',
+    'rhode-island', 'south-carolina', 'south-dakota', 'tennessee', 'texas',
+    'vermont', 'virginia', 'west-virginia', 'wisconsin',
+]
 GEOFABRIK_STATES = {
-    'arizona':    'https://download.geofabrik.de/north-america/us/arizona-latest.osm.pbf',
-    'california': 'https://download.geofabrik.de/north-america/us/california-latest.osm.pbf',
-    'utah':       'https://download.geofabrik.de/north-america/us/utah-latest.osm.pbf',
-    'nevada':     'https://download.geofabrik.de/north-america/us/nevada-latest.osm.pbf',
-    'new-mexico': 'https://download.geofabrik.de/north-america/us/new-mexico-latest.osm.pbf',
-    'washington': 'https://download.geofabrik.de/north-america/us/washington-latest.osm.pbf',
-    'oregon':     'https://download.geofabrik.de/north-america/us/oregon-latest.osm.pbf',
-    'idaho':      'https://download.geofabrik.de/north-america/us/idaho-latest.osm.pbf',
-    'montana':    'https://download.geofabrik.de/north-america/us/montana-latest.osm.pbf',
-    'wyoming':    'https://download.geofabrik.de/north-america/us/wyoming-latest.osm.pbf',
-    'colorado':   'https://download.geofabrik.de/north-america/us/colorado-latest.osm.pbf',
+    slug: f'{GEOFABRIK_BASE_URL}{slug}-latest.osm.pbf'
+    for slug in GEOFABRIK_STATE_SLUGS
 }
 
 # Highway tag values kept as "trails" (foot-traffic corridors SAR subjects follow).
@@ -91,8 +109,15 @@ WATERWAY_TAGS = {'stream', 'river', 'canal', 'drain', 'ditch'}
 POWER_TAGS = {'line', 'minor_line'}
 
 # Minimum free disk space to start (GB) — prevents a cron job from filling
-# the root filesystem and breaking the running Flask process.
-MIN_FREE_DISK_GB = 18
+# the root filesystem and breaking the running Flask process. See
+# check_disk_space() for how this number was derived.
+MIN_FREE_DISK_GB = 40
+
+# How many times to attempt each PBF download before giving up on the
+# build. Geofabrik occasionally drops a connection mid-file; with 51
+# downloads per run, one transient failure must not cost the whole week.
+DOWNLOAD_ATTEMPTS = 3
+DOWNLOAD_RETRY_DELAY_S = 60
 
 # osmium-tool command name — resolved via PATH. Exposed as a constant so
 # Debian-like systems that ship it as `osmium-tool` can swap in one place.
@@ -121,11 +146,14 @@ def setup_logging(verbose):
 def check_disk_space(required_gb):
     """Abort early if disk is too full to safely build the cache.
 
-    Worst-case full build (11 states): the new osm_cache.gpkg.tmp is built
-    alongside the still-live osm_cache.gpkg, plus ~4 GB of raw and filtered
-    PBFs held until end-of-run cleanup. Peak is roughly 16-17 GB. The 18 GB
-    floor keeps this preflight an honest guard rather than a number the real
-    build can quietly exceed.
+    Worst-case full build (all 50 states + DC): the new osm_cache.gpkg.tmp is
+    built alongside the still-live osm_cache.gpkg (~20 GB each), plus the
+    raw and filtered PBFs. Raw PBFs total ~11 GB but each one is deleted as
+    soon as it has been filtered, and each filtered PBF (~40% of raw) as
+    soon as it has been streamed into the GeoPackage — so what is actually
+    on disk at once is the filtered set (~4.5 GB) plus, briefly, one raw
+    file. Peak is roughly 30 GB. The 40 GB floor keeps this preflight an
+    honest guard rather than a number the real build can quietly exceed.
     """
     try:
         stat = shutil.disk_usage(CACHE_DIR)
@@ -182,7 +210,9 @@ def download_pbf(slug, url, dest_path):
     If a file is already on disk and was modified within the last 24 hours,
     we skip the download — Geofabrik rebuilds extracts daily around 20:20
     UTC, so a same-day local copy is current enough for a weekly cache.
-    This makes manual re-runs during development cheap.
+    This makes manual re-runs during development cheap, provided the
+    previous run kept its PBFs (--keep-pbfs); by default they are removed
+    as soon as each state has been filtered.
 
     Args:
         slug: Short identifier used for progress logging (e.g., 'arizona')
@@ -635,18 +665,39 @@ def append_state_to_gpkg(state_layers, state_slug, output_path, is_first_state):
 # STEP 8: Metadata sidecar
 # ===============================================================================
 
-def write_metadata(counts, states, bbox, pbf_dates):
+def _remove_pbf(path, keep):
+    """Delete an intermediate PBF unless --keep-pbfs was given.
+
+    Silently ignores a file that is already gone — the end-of-run sweep
+    revisits paths that were normally removed mid-run.
+    """
+    if keep or not os.path.isfile(path):
+        return
+    try:
+        os.remove(path)
+    except OSError as e:
+        logging.warning(f"  could not remove {path}: {e}")
+
+
+def write_metadata(counts, states, bbox, pbf_dates, state_bboxes):
     """Write the cache metadata sidecar atomically.
 
     The sidecar is what pipeline/osm_cache.py reads to report cache age
     and coverage to the user. Written to a .tmp file first and renamed
     so readers never see a partial JSON file.
+
+    'bbox' is the union envelope of every state and is kept for older
+    readers. 'state_bboxes' is what cache_covers_bbox() actually uses:
+    with Alaska in the set the union envelope spans the antimeridian and
+    covers nearly the whole northern hemisphere, so it no longer says
+    anything useful on its own.
     """
     meta = {
         # ISO 8601 UTC — matches what cache_age_days() expects to parse
         'built_at': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
         'states': states,
         'bbox': list(bbox),   # (west, south, east, north) in EPSG:4326
+        'state_bboxes': state_bboxes,   # slug -> [west, south, east, north]
         'feature_counts': counts,
         'source_pbf_dates': pbf_dates,
         'cache_version': 1,   # bump if the GeoPackage schema changes
@@ -695,8 +746,18 @@ def main():
     for slug in states_to_build:
         url = GEOFABRIK_STATES[slug]
         dest = os.path.join(PBF_WORK_DIR, f'{slug}-latest.osm.pbf')
-        if not download_pbf(slug, url, dest):
-            logging.error(f"Aborting: could not download {slug}")
+        for attempt in range(1, DOWNLOAD_ATTEMPTS + 1):
+            if download_pbf(slug, url, dest):
+                break
+            if attempt < DOWNLOAD_ATTEMPTS:
+                logging.warning(f"  {slug}: attempt {attempt}/{DOWNLOAD_ATTEMPTS} "
+                                f"failed, retrying in {DOWNLOAD_RETRY_DELAY_S}s")
+                time.sleep(DOWNLOAD_RETRY_DELAY_S)
+        else:
+            # The old cache stays live on abort, so a failed week is a stale
+            # cache, not a missing one.
+            logging.error(f"Aborting: could not download {slug} after "
+                          f"{DOWNLOAD_ATTEMPTS} attempts")
             sys.exit(4)
         raw_pbf_paths[slug] = dest
         mtime = os.path.getmtime(dest)
@@ -712,6 +773,10 @@ def main():
             logging.warning(f"  {slug}: filter failed, skipping this state")
             continue
         filtered_pbf_paths[slug] = filtered_path
+        # The raw extract is no longer needed. Dropping it now, rather than
+        # at end-of-run, keeps the whole-country build's disk peak to the
+        # filtered set plus one raw file instead of ~11 GB of raw PBFs.
+        _remove_pbf(raw_path, keep=args.keep_pbfs)
 
     if not filtered_pbf_paths:
         logging.error("All states failed filtering. Aborting.")
@@ -734,6 +799,7 @@ def main():
     # which states we actually got data from (partial builds are OK).
     feature_counts = {'trails': 0, 'roads': 0, 'waterways': 0, 'powerlines': 0}
     coverage_bounds = []
+    state_bboxes = {}
     successful_states = []
     is_first = True
 
@@ -756,9 +822,11 @@ def main():
             feature_counts[layer] += count
         if state_bounds is not None:
             coverage_bounds.append(state_bounds)
+            state_bboxes[slug] = [float(v) for v in state_bounds]
 
         successful_states.append(slug)
         is_first = False
+        _remove_pbf(filtered_path, keep=args.keep_pbfs)
 
     if not successful_states:
         logging.error("No states successfully written to GeoPackage. Aborting.")
@@ -783,16 +851,15 @@ def main():
 
     # --- Step E: Write metadata sidecar ---
     logging.info(f"\n[4/4] Writing metadata sidecar...")
-    write_metadata(feature_counts, successful_states, cache_bbox, pbf_dates)
+    write_metadata(feature_counts, successful_states, cache_bbox, pbf_dates,
+                   state_bboxes)
 
     # --- Cleanup ---
+    # PBFs are normally removed as soon as each state is done with them;
+    # this sweep only catches leftovers from states that failed midway.
     if not args.keep_pbfs:
-        logging.info("Removing downloaded and filtered PBFs (use --keep-pbfs to retain)...")
         for pbf_path in list(raw_pbf_paths.values()) + list(filtered_pbf_paths.values()):
-            try:
-                os.remove(pbf_path)
-            except OSError as e:
-                logging.warning(f"  could not remove {pbf_path}: {e}")
+            _remove_pbf(pbf_path, keep=False)
 
     elapsed = time.time() - t_total
     gpkg_size_mb = os.path.getsize(CACHE_GPKG) / (1024 ** 2)

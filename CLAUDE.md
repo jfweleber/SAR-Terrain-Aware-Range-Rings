@@ -86,7 +86,7 @@ analysis before deploying. System packages (`gdal-bin`, `libgdal-dev`,
 ## The OSM cache
 
 `/var/www/sar.weleber.net/cache/osm/` holds `osm_cache.gpkg` plus metadata,
-rebuilt weekly by cron from `tools/build_osm_cache.py` (11 Geofabrik state PBFs,
+rebuilt weekly by cron from `tools/build_osm_cache.py` (51 Geofabrik PBFs, every state plus DC,
 filtered with `osmium`, streamed as Arrow batches — it OOM'd on California
 before the batching rewrite). It is a **failure-only fallback**: live Overpass
 responses are never cached into it.
